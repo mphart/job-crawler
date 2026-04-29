@@ -1,6 +1,53 @@
 import { requestJson, requestVoid } from "../../../shared/api/client";
 import { FeedFilters, JobPosting } from "../model/feed.types";
 
+type ApiAppliedBy = {
+  userId?: string;
+  username?: string;
+  UserID?: string;
+  Username?: string;
+};
+
+type ApiJobPosting = {
+  id?: string;
+  company?: string;
+  title?: string;
+  location?: string;
+  compensation?: string;
+  postedAt?: string;
+  url?: string;
+  appliedBy?: ApiAppliedBy[];
+  ID?: string;
+  Company?: string;
+  Title?: string;
+  Location?: string;
+  Compensation?: string;
+  PostedAt?: string;
+  URL?: string;
+  AppliedBy?: ApiAppliedBy[];
+};
+
+function mapAppliedBy(users?: ApiAppliedBy[]): JobPosting["appliedBy"] {
+  if (!users) return [];
+  return users.map((user) => ({
+    userId: user.userId ?? user.UserID ?? "",
+    username: user.username ?? user.Username ?? "unknown",
+  }));
+}
+
+function mapJob(job: ApiJobPosting): JobPosting {
+  return {
+    id: job.id ?? job.ID ?? "",
+    company: job.company ?? job.Company ?? "Unknown company",
+    title: job.title ?? job.Title ?? "Unknown title",
+    location: job.location ?? job.Location ?? "Unknown location",
+    compensation: job.compensation ?? job.Compensation ?? "",
+    postedAt: job.postedAt ?? job.PostedAt ?? new Date(0).toISOString(),
+    url: job.url ?? job.URL ?? "",
+    appliedBy: mapAppliedBy(job.appliedBy ?? job.AppliedBy),
+  };
+}
+
 export function filterAndSortFeedJobs(jobs: JobPosting[], filters: FeedFilters): JobPosting[] {
   const q = filters.search.toLowerCase();
   const filtered = jobs.filter((job) => `${job.company} ${job.title} ${job.location}`.toLowerCase().includes(q));
@@ -22,7 +69,8 @@ function feedPath(filters: FeedFilters): string {
 }
 
 export async function fetchFeed(filters: FeedFilters, token: string, signal?: AbortSignal): Promise<JobPosting[]> {
-  return requestJson<JobPosting[]>(feedPath(filters), "GET", undefined, { signal, token });
+  const payload = await requestJson<ApiJobPosting[]>(feedPath(filters), "GET", undefined, { signal, token });
+  return payload.map(mapJob);
 }
 
 export async function markApplied(jobId: string, token: string): Promise<void> {
