@@ -23,11 +23,14 @@ func NewApp() App {
     store := db.NewStore()
 
     handlers := httpx.Handlers{
-        Auth: &auth.Handler{Service: auth.Service{Store: store}},
-        Feed: &feed.Handler{Service: feed.Service{Store: store}},
-        Profiles: &profiles.Handler{Service: profiles.Service{Store: store}},
-        Notifications: &notifications.Handler{Service: notifications.Service{Store: store}},
-        Users: &users.Handler{Service: users.Service{Store: store}},
+        AuthLogin:            auth.Handler{Service: auth.Service{Store: store}}.Login,
+        AuthSignup:           auth.Handler{Service: auth.Service{Store: store}}.Signup,
+        FeedList:             feed.Handler{Service: feed.Service{Store: store}}.List,
+        FeedAction:           feed.Handler{Service: feed.Service{Store: store}}.Action,
+        ProfileUpdateMe:      profiles.Handler{Service: profiles.Service{Store: store}}.UpdateMe,
+        ProfileGetByID:       profiles.Handler{Service: profiles.Service{Store: store}}.GetByID,
+        NotificationSettings: notifications.Handler{Service: notifications.Service{Store: store}}.Update,
+        UsersSearch:          users.Handler{Service: users.Service{Store: store}}.Search,
     }
 
     return App{Config: cfg, Router: httpx.NewRouter(handlers)}

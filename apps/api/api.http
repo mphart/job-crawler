@@ -15,19 +15,19 @@ Content-Type: application/json
 
 ### feed
 GET http://localhost:8080/api/feed?search=engineer&sortBy=company
-X-User-Id: u_1
+Authorization: Bearer dWlkOnVfMQ==
 
 ### apply
 POST http://localhost:8080/api/feed/job_1/apply
-X-User-Id: u_1
+Authorization: Bearer dWlkOnVfMQ==
 
 ### profile
 GET http://localhost:8080/api/profiles/u_1
-X-User-Id: u_1
+Authorization: Bearer dWlkOnVfMQ==
 
 ### profile update
 PATCH http://localhost:8080/api/profiles/me
 Content-Type: application/json
-X-User-Id: u_1
+Authorization: Bearer dWlkOnVfMQ==
 
 {"isPrivate":false,"resumeFileName":"resume.pdf","preferences":{"emailOptIn":true}}
