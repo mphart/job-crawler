@@ -1,22 +1,81 @@
 export type HttpMethod = "GET" | "POST" | "PATCH";
 
+type RequestOptions = {
+  signal?: AbortSignal;
+  token?: string;
+};
+
 type MockRequestOptions = {
   delayMs?: number;
   signal?: AbortSignal;
 };
 
-export async function requestJson<T>(url: string, method: HttpMethod = "GET", body?: unknown): Promise<T> {
-  const response = await fetch(url, {
+type ApiErrorBody = {
+  error?: string;
+};
+
+const DEFAULT_NODE_BASE_URL = "http://localhost:8080";
+const isBrowser = typeof window !== "undefined";
+const configuredBase = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
+const API_BASE_URL = configuredBase || (isBrowser ? "" : DEFAULT_NODE_BASE_URL);
+
+export class ApiError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+    this.name = "ApiError";
+  }
+}
+
+function buildUrl(path: string): string {
+  if (!path.startsWith("/")) {
+    throw new Error(`API path must start with '/': ${path}`);
+  }
+  return `${API_BASE_URL}${path}`;
+}
+
+async function parseErrorMessage(response: Response): Promise<string> {
+  try {
+    const body = (await response.json()) as ApiErrorBody;
+    if (body.error) return body.error;
+  } catch {
+    // ignore parse errors and use fallback
+  }
+  return `Request failed: ${response.status}`;
+}
+
+async function request(path: string, method: HttpMethod, body?: unknown, options: RequestOptions = {}): Promise<Response> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (options.token) {
+    headers.Authorization = `Bearer ${options.token}`;
+  }
+
+  const response = await fetch(buildUrl(path), {
     method,
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: body ? JSON.stringify(body) : undefined,
+    signal: options.signal,
   });
 
   if (!response.ok) {
-    throw new Error(`Request failed: ${response.status}`);
+    throw new ApiError(response.status, await parseErrorMessage(response));
   }
 
+  return response;
+}
+
+export async function requestJson<T>(path: string, method: HttpMethod = "GET", body?: unknown, options: RequestOptions = {}): Promise<T> {
+  const response = await request(path, method, body, options);
+  if (response.status === 204) {
+    return undefined as T;
+  }
   return (await response.json()) as T;
+}
+
+export async function requestVoid(path: string, method: HttpMethod, body?: unknown, options: RequestOptions = {}): Promise<void> {
+  await request(path, method, body, options);
 }
 
 export async function mockRequestJson<T>(factory: () => T, options: MockRequestOptions = {}): Promise<T> {

@@ -1,4 +1,4 @@
-import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, PropsWithChildren, ReactNode, createElement, useContext, useEffect, useMemo, useState } from "react";
 import { SessionUser } from "../model/auth.types";
 
 const SESSION_KEY = "job-crawler.session";
@@ -42,7 +42,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
     [user, isHydrating]
   );
 
-  return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
+  return createElement(SessionContext.Provider, { value }, children as ReactNode);
 }
 
 export function useSession() {

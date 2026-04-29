@@ -4,7 +4,7 @@ import { TextInput } from "../../../shared/components/TextInput";
 import { searchUsers } from "../api/users.api";
 import { UserSummary } from "../model/users.types";
 
-export function UserSearchBar() {
+export function UserSearchBar({ token }: { token: string }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<UserSummary[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -21,7 +21,7 @@ export function UserSearchBar() {
     setIsLoading(true);
     setError(null);
 
-    searchUsers(query, controller.signal)
+    searchUsers(query, token, controller.signal)
       .then((users) => {
         if (!controller.signal.aborted) {
           setResults(users);
@@ -40,7 +40,7 @@ export function UserSearchBar() {
       });
 
     return () => controller.abort();
-  }, [query]);
+  }, [query, token]);
 
   return (
     <div style={{ position: "relative", minWidth: 220 }}>

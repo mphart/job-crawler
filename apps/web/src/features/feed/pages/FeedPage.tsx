@@ -10,26 +10,38 @@ import { useFeedFilters } from "../hooks/useFeedFilters";
 import { useFeedQuery } from "../hooks/useFeedQuery";
 import { UserSearchBar } from "../../user-discovery/components/UserSearchBar";
 import { EmptyState } from "../../../shared/components/EmptyState";
+import { useSession } from "../../auth/hooks/useSession";
 
 export function FeedPage() {
   const { theme, toggleTheme } = useTheme();
+  const { user, signOut } = useSession();
   const { filters, setSearch, setSortBy } = useFeedFilters();
   const debouncedSearch = useDebouncedValue(filters.search, 250);
   const resolvedFilters = useMemo(() => ({ ...filters, search: debouncedSearch }), [filters, debouncedSearch]);
-  const { jobs, loading, error, setJobs } = useFeedQuery(resolvedFilters);
+  const { jobs, loading, error, setJobs } = useFeedQuery(resolvedFilters, user?.token ?? null);
 
   async function onApply(id: string) {
-    await markApplied(id);
+    if (!user) return;
+    await markApplied(id, user.token);
     setJobs((prev) => prev.filter((j) => j.id !== id));
   }
 
   async function onReject(id: string) {
-    await rejectPosting(id);
+    if (!user) return;
+    await rejectPosting(id, user.token);
     setJobs((prev) => prev.filter((j) => j.id !== id));
   }
 
+  const actions = (
+    <div style={{ display: "flex", gap: "0.5rem" }}>
+      {user ? <UserSearchBar token={user.token} /> : null}
+      <Button onClick={toggleTheme}>Theme: {theme}</Button>
+      <Button variant="secondary" onClick={signOut}>Sign out</Button>
+    </div>
+  );
+
   return (
-    <PageShell title="Welcome" actions={<div style={{ display: "flex", gap: "0.5rem" }}><UserSearchBar /><Button onClick={toggleTheme}>Theme: {theme}</Button></div>}>
+    <PageShell title="Welcome" actions={actions}>
       <FeedFilters search={filters.search} sortBy={filters.sortBy} onSearch={setSearch} onSort={setSortBy} />
       {loading ? <p>Loading feed...</p> : null}
       {error ? <EmptyState title="Unable to load feed" description={error} /> : null}

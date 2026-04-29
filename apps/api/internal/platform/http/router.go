@@ -42,5 +42,5 @@ func NewRouter(h Handlers) http.Handler {
     mux.HandleFunc("/api/profiles/", h.ProfileGetByID)
     mux.HandleFunc("/api/notifications/settings", h.NotificationSettings)
     mux.HandleFunc("/api/users/search", h.UsersSearch)
-    return AuthMiddleware(mux)
+    return CorsMiddleware(AuthMiddleware(mux))
 }

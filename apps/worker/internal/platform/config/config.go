@@ -1,0 +1,43 @@
+package config
+
+import (
+    "os"
+    "time"
+)
+
+type Config struct {
+    APIBaseURL   string
+    RunInterval  time.Duration
+    RequestTimeout time.Duration
+    BearerToken  string
+}
+
+func Load() Config {
+    return Config{
+        APIBaseURL: get("WORKER_API_BASE_URL", "http://api:8080"),
+        RunInterval: duration("WORKER_RUN_INTERVAL", 30*time.Second),
+        RequestTimeout: duration("WORKER_REQUEST_TIMEOUT", 5*time.Second),
+        BearerToken: os.Getenv("WORKER_BEARER_TOKEN"),
+    }
+}
+
+func get(key, fallback string) string {
+    if value := os.Getenv(key); value != "" {
+        return value
+    }
+    return fallback
+}
+
+func duration(key string, fallback time.Duration) time.Duration {
+    value := os.Getenv(key)
+    if value == "" {
+        return fallback
+    }
+
+    parsed, err := time.ParseDuration(value)
+    if err != nil {
+        return fallback
+    }
+
+    return parsed
+}
