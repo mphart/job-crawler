@@ -1,14 +1,7 @@
-import { mockRequestJson } from "../../../shared/api/client";
+import { requestJson } from "../../../shared/api/client";
 import { UserSummary } from "../model/users.types";
 
-const MOCK_USERS: UserSummary[] = [
-  { id: "u_2", username: "alex", totalApplied: 44 },
-  { id: "u_3", username: "jamie", totalApplied: 27 },
-  { id: "u_4", username: "taylor", totalApplied: 16 },
-];
-
-// MOCK: Replace with backend user search endpoint.
-export async function searchUsers(query: string, signal?: AbortSignal): Promise<UserSummary[]> {
-  const normalized = query.toLowerCase();
-  return mockRequestJson(() => MOCK_USERS.filter((user) => user.username.toLowerCase().includes(normalized)), { signal });
+export async function searchUsers(query: string, token: string, signal?: AbortSignal): Promise<UserSummary[]> {
+  const params = new URLSearchParams({ q: query });
+  return requestJson<UserSummary[]>(`/api/users/search?${params.toString()}`, "GET", undefined, { signal, token });
 }

@@ -1,7 +1,6 @@
-import { mockRequestJson } from "../../../shared/api/client";
+import { requestJson } from "../../../shared/api/client";
 import { NotificationSettings } from "../model/notifications.types";
 
-// MOCK: Pending backend notification preference endpoints.
-export async function updateNotificationSettings(settings: NotificationSettings): Promise<NotificationSettings> {
-  return mockRequestJson(() => settings);
+export async function updateNotificationSettings(settings: NotificationSettings, token: string): Promise<NotificationSettings> {
+  return requestJson<NotificationSettings>("/api/notifications/settings", "PATCH", settings, { token });
 }

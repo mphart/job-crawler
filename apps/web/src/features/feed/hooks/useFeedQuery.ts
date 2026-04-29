@@ -2,17 +2,24 @@ import { useEffect, useState } from "react";
 import { fetchFeed } from "../api/feed.api";
 import { FeedFilters, JobPosting } from "../model/feed.types";
 
-export function useFeedQuery(filters: FeedFilters) {
+export function useFeedQuery(filters: FeedFilters, token: string | null) {
   const [jobs, setJobs] = useState<JobPosting[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!token) {
+      setJobs([]);
+      setLoading(false);
+      setError("Missing session token.");
+      return;
+    }
+
     const controller = new AbortController();
     setLoading(true);
     setError(null);
 
-    fetchFeed(filters, controller.signal)
+    fetchFeed(filters, token, controller.signal)
       .then((data) => {
         if (!controller.signal.aborted) {
           setJobs(data);
@@ -30,7 +37,7 @@ export function useFeedQuery(filters: FeedFilters) {
       });
 
     return () => controller.abort();
-  }, [filters]);
+  }, [filters, token]);
 
   return { jobs, loading, error, setJobs };
 }

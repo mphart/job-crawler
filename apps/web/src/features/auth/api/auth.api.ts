@@ -1,11 +1,10 @@
-import { mockRequestJson } from "../../../shared/api/client";
+import { requestJson } from "../../../shared/api/client";
 import { LoginRequest, SessionUser, SignupRequest } from "../model/auth.types";
 
-// MOCK: Replace with backend API integration when auth endpoints are available.
 export async function login(request: LoginRequest): Promise<SessionUser> {
-  return mockRequestJson(() => ({ id: "u_1", email: request.email, username: "demo-user" }));
+  return requestJson<SessionUser>("/api/auth/login", "POST", request);
 }
 
 export async function signup(request: SignupRequest): Promise<SessionUser> {
-  return mockRequestJson(() => ({ id: "u_new", email: request.email, username: request.username }));
+  return requestJson<SessionUser>("/api/auth/signup", "POST", request);
 }
