@@ -1,2 +1,6 @@
 import { PropsWithChildren } from "react";
-export function AppProviders({children}:PropsWithChildren){return <>{children}</>;}
+import { SessionProvider } from "../features/auth/hooks/useSession";
+
+export function AppProviders({ children }: PropsWithChildren) {
+  return <SessionProvider>{children}</SessionProvider>;
+}
