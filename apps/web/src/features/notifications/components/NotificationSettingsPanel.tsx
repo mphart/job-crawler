@@ -1,13 +1,35 @@
 import React from "react";
-import { useState } from "react";
-import { Button } from "../../../shared/components/Button";
+import { useEffect, useState } from "react";
 import { Select } from "../../../shared/components/Select";
-import { updateNotificationSettings } from "../api/notifications.api";
+import { fetchNotificationSettings, updateNotificationSettings } from "../api/notifications.api";
 import { NotificationFrequency } from "../model/notifications.types";
+import { Button } from "../../../shared/components/Button";
 
 export function NotificationSettingsPanel({ emailOptIn, frequency, token }: { emailOptIn: boolean; frequency: NotificationFrequency; token: string }) {
   const [current, setCurrent] = useState<NotificationFrequency>(frequency);
   const [status, setStatus] = useState<string>("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    fetchNotificationSettings(token)
+      .then((settings) => {
+        if (!active) return;
+        setCurrent(settings.frequency);
+      })
+      .catch(() => {
+        if (!active) return;
+        setStatus("Using local frequency setting.");
+      })
+      .finally(() => {
+        if (!active) return;
+        setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [token]);
 
   async function onSave() {
     try {
@@ -27,8 +49,9 @@ export function NotificationSettingsPanel({ emailOptIn, frequency, token }: { em
           <option value="daily">Daily</option>
           <option value="twice-daily">Twice daily</option>
           <option value="instant">Instant</option>
+          <option value="every-2-weeks">Every 2 weeks</option>
         </Select>
-        <Button onClick={onSave}>Save</Button>
+        <Button onClick={onSave} disabled={loading}>Save</Button>
         {status ? <small>{status}</small> : null}
       </div>
     </section>

@@ -36,11 +36,14 @@ function mapAppliedBy(users?: ApiAppliedBy[]): JobPosting["appliedBy"] {
 }
 
 function mapJob(job: ApiJobPosting): JobPosting {
+  const company = (job.company ?? job.Company ?? "").trim();
+  const title = (job.title ?? job.Title ?? "").trim();
+  const location = (job.location ?? job.Location ?? "").trim();
   return {
     id: job.id ?? job.ID ?? "",
-    company: job.company ?? job.Company ?? "Unknown company",
-    title: job.title ?? job.Title ?? "Unknown title",
-    location: job.location ?? job.Location ?? "Unknown location",
+    company: company.length > 0 ? company : "Unknown company",
+    title: title.length > 0 ? title : "Unknown title",
+    location: location.length > 0 ? location : "Unknown location",
     compensation: job.compensation ?? job.Compensation ?? "",
     postedAt: job.postedAt ?? job.PostedAt ?? new Date(0).toISOString(),
     url: job.url ?? job.URL ?? "",

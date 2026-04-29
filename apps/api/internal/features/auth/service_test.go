@@ -7,7 +7,7 @@ import (
 )
 
 func TestSignupAndLoginIssueToken(t *testing.T) {
-	svc := Service{Store: db.NewStore()}
+	svc := Service{Store: InMemoryStore{Inner: db.NewStore()}}
 
 	created, err := svc.Signup("new@example.com", "new-user", "password123", []string{"frontend"})
 	if err != nil {
