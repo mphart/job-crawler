@@ -6,7 +6,7 @@ export function LoginPage(){
     const navigate=useNavigate();
     return <PageShell title="Login">
         <LoginForm onSuccess={()=>navigate("/feed")}/>
-            <p style={{marginTop:"0.75rem"}}>Don't have an account? 
+            <p style={{marginTop:"0.85rem",color:"var(--muted)"}}>Don't have an account? 
                 <Link to="/signup">Sign up</Link>
             </p>
     </PageShell>;

@@ -20,15 +20,16 @@ export function JobListItem({
     <article
       style={{
         border: "1px solid var(--border)",
-        borderRadius: 10,
-        padding: "0.8rem",
-        marginBottom: "0.75rem",
+        borderRadius: "var(--radius-md)",
+        padding: "0.95rem 1rem",
+        marginBottom: "0.85rem",
         background: "var(--surface)",
+        boxShadow: "var(--shadow-sm)",
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem" }}>
         <div>
-          <strong>{job.company}</strong> | {job.title} | {formatCompensation(job.compensation)} | {job.location}
+          <strong style={{ fontSize: "1rem" }}>{job.company}</strong> | {job.title} | {formatCompensation(job.compensation)} | {job.location}
           <div>
             <small>Posted: {formatDate(job.postedAt)}</small>
           </div>

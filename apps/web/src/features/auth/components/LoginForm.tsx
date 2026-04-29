@@ -41,10 +41,10 @@ export function LoginForm({ onSuccess }: { onSuccess: () => void }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} style={{ display: "grid", gap: "0.75rem", maxWidth: 420 }}>
+    <form onSubmit={handleSubmit} className="ui-card" style={{ display: "grid", gap: "0.85rem", maxWidth: 440, padding: "1.15rem" }}>
       <TextInput value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" type="email" />
       <TextInput value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" type="password" />
-      {error ? <small style={{ color: "var(--danger)" }}>{error}</small> : null}
+      {error ? <small style={{ color: "var(--danger)", fontWeight: 600 }}>{error}</small> : null}
       <Button type="submit" disabled={isSubmitting}>{isSubmitting ? "Signing in..." : "Sign in"}</Button>
     </form>
   );

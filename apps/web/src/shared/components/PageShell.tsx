@@ -3,22 +3,22 @@ import { PropsWithChildren, ReactNode } from "react";
 
 export function PageShell({ title, actions, children }: PropsWithChildren<{ title: string; actions?: ReactNode }>) {
   return (
-    <main style={{ maxWidth: 1120, margin: "0 auto", padding: "1.25rem 1rem 2rem" }}>
+    <main style={{ maxWidth: 1140, margin: "0 auto", padding: "1.7rem 1.1rem 2.4rem" }}>
       <header
         style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          gap: "0.75rem",
-          marginBottom: "1rem",
+          gap: "1rem",
+          marginBottom: "1.15rem",
           background: "var(--surface)",
           border: "1px solid var(--border)",
-          borderRadius: 14,
-          padding: "0.9rem 1rem",
+          borderRadius: "var(--radius-lg)",
+          padding: "1rem 1.15rem",
           boxShadow: "var(--shadow)",
         }}
       >
-        <h1 style={{ margin: 0, fontSize: "1.2rem" }}>{title}</h1>
+        <h1 style={{ margin: 0, fontSize: "1.42rem", fontWeight: 800 }}>{title}</h1>
         {actions}
       </header>
       {children}

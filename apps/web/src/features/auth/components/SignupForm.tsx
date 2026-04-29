@@ -49,12 +49,12 @@ export function SignupForm({ onSuccess }: { onSuccess: () => void }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} style={{ display: "grid", gap: "0.75rem", maxWidth: 520 }}>
+    <form onSubmit={handleSubmit} className="ui-card" style={{ display: "grid", gap: "0.85rem", maxWidth: 560, padding: "1.15rem" }}>
       <TextInput value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" />
       <TextInput value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Username" />
       <TextInput value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" type="password" />
       <TextInput value={keywords} onChange={(e) => setKeywords(e.target.value)} placeholder="Keywords (comma separated)" />
-      {error ? <small style={{ color: "var(--danger)" }}>{error}</small> : null}
+      {error ? <small style={{ color: "var(--danger)", fontWeight: 600 }}>{error}</small> : null}
       <Button type="submit" disabled={isSubmitting}>{isSubmitting ? "Creating..." : "Create account"}</Button>
     </form>
   );

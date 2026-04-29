@@ -36,7 +36,7 @@ export function FeedPage() {
   }
 
   const actions = (
-    <div style={{ display: "flex", gap: "0.5rem" }}>
+    <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap", justifyContent: "flex-end" }}>
       {user ? <UserSearchBar token={user.token} /> : null}
       <Button variant="secondary" onClick={() => navigate("/profile/me")}>My profile</Button>
       <Button onClick={toggleTheme}>Theme: {theme}</Button>
@@ -45,7 +45,7 @@ export function FeedPage() {
   );
 
   return (
-    <PageShell title="Welcome" actions={actions}>
+    <PageShell title="Welcome Back" actions={actions}>
       <FeedFilters search={filters.search} sortBy={filters.sortBy} onSearch={setSearch} onSort={setSortBy} />
       {loading ? <p>Loading feed...</p> : null}
       {error ? <EmptyState title="Unable to load feed" description={error} /> : null}

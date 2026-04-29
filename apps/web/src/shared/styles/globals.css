@@ -7,16 +7,58 @@
 body {
   margin: 0;
   font-family: Inter, system-ui, -apple-system, Segoe UI, sans-serif;
-  background: radial-gradient(circle at top right, rgba(37, 99, 235, 0.08), transparent 35%), var(--bg);
+  background-color: var(--bg);
+  background-image:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg) 84%, white 16%), var(--bg)),
+    radial-gradient(circle at 14% 18%, color-mix(in srgb, var(--primary) 14%, transparent), transparent 40%),
+    radial-gradient(circle at 86% 12%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 34%);
+  background-attachment: fixed;
   color: var(--text);
+  line-height: 1.45;
 }
 
 a {
-  color: inherit;
+  color: var(--primary);
   text-decoration: none;
+  transition: color .2s ease;
+}
+
+a:hover {
+  color: var(--primary-strong);
 }
 
 button {
   cursor: pointer;
   font: inherit;
+}
+
+input,
+select {
+  font: inherit;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  letter-spacing: -0.02em;
+}
+
+.ui-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.ui-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  padding: .3rem .65rem;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--surface-elevated) 88%, white 12%);
+  font-size: .82rem;
 }

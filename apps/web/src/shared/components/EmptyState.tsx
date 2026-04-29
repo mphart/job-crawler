@@ -1,2 +1,2 @@
 import React from "react";
-export function EmptyState({title,description}:{title:string;description:string}){return <div style={{border:"1px dashed var(--border)",borderRadius:10,padding:"1rem",color:"var(--muted)"}}><h3 style={{marginTop:0}}>{title}</h3><p style={{marginBottom:0}}>{description}</p></div>;}
+export function EmptyState({title,description}:{title:string;description:string}){return <div className="ui-card" style={{borderStyle:"dashed",borderRadius:"var(--radius-md)",padding:"1rem 1.1rem",color:"var(--muted)",background:"color-mix(in srgb, var(--surface-elevated) 90%, white 10%)"}}><h3 style={{marginTop:0,marginBottom:".45rem",fontSize:"1.03rem",color:"var(--text)"}}>{title}</h3><p style={{marginBottom:0,fontSize:".95rem"}}>{description}</p></div>;}
