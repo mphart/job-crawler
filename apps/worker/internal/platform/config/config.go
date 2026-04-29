@@ -14,6 +14,11 @@ type Config struct {
 	APIToken       string
 	MaxSyncRetries int
 	RetryBackoff   time.Duration
+	SMTPHost       string
+	SMTPPort       int
+	SMTPUsername   string
+	SMTPPassword   string
+	SMTPFrom       string
 }
 
 func Load() Config {
@@ -25,6 +30,11 @@ func Load() Config {
 		APIToken:       get("WORKER_API_TOKEN", "worker-dev-token"),
 		MaxSyncRetries: intValue("WORKER_MAX_SYNC_RETRIES", 3),
 		RetryBackoff:   duration("WORKER_RETRY_BACKOFF", 1500*time.Millisecond),
+		SMTPHost:       os.Getenv("WORKER_SMTP_HOST"),
+		SMTPPort:       intValue("WORKER_SMTP_PORT", 587),
+		SMTPUsername:   os.Getenv("WORKER_SMTP_USERNAME"),
+		SMTPPassword:   os.Getenv("WORKER_SMTP_PASSWORD"),
+		SMTPFrom:       get("WORKER_SMTP_FROM", "no-reply@jobcrawler.local"),
 	}
 }
 

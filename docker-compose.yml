@@ -1,4 +1,19 @@
 services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: "jobcrawler"
+      MYSQL_USER: "jobcrawler"
+      MYSQL_PASSWORD: "jobcrawler"
+      MYSQL_ROOT_PASSWORD: "root"
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
   api:
     build:
       context: .
@@ -7,6 +22,10 @@ services:
       API_HTTP_ADDR: ":8080"
       API_JWT_SECRET: "dev-secret"
       API_WORKER_TOKEN: "worker-dev-token"
+      API_MYSQL_DSN: "jobcrawler:jobcrawler@tcp(mysql:3306)/jobcrawler?parseTime=true"
+    depends_on:
+      mysql:
+        condition: service_healthy
     ports:
       - "8080:8080"
 
@@ -32,5 +51,10 @@ services:
       WORKER_API_TOKEN: "worker-dev-token"
       WORKER_MAX_SYNC_RETRIES: "5"
       WORKER_RETRY_BACKOFF: "2s"
+      WORKER_SMTP_HOST: ""
+      WORKER_SMTP_PORT: "587"
+      WORKER_SMTP_USERNAME: ""
+      WORKER_SMTP_PASSWORD: ""
+      WORKER_SMTP_FROM: "no-reply@jobcrawler.local"
     depends_on:
       - api

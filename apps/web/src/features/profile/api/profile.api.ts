@@ -1,5 +1,6 @@
 import { requestJson } from "../../../shared/api/client";
 import { Profile } from "../model/profile.types";
+import { JobPosting } from "../../feed/model/feed.types";
 
 type ApiUserPreference = {
   keywords?: string[];
@@ -24,7 +25,7 @@ type ApiProfile = {
   totalApplied?: number;
   resumeFileName?: string;
   preferences?: ApiUserPreference;
-  appliedJobs?: Profile["appliedJobs"];
+  appliedJobs?: ApiJobPosting[];
   ID?: string;
   Username?: string;
   Email?: string;
@@ -32,7 +33,35 @@ type ApiProfile = {
   TotalApplied?: number;
   ResumeFileName?: string;
   Preferences?: ApiUserPreference;
-  AppliedJobs?: Profile["appliedJobs"];
+  AppliedJobs?: ApiJobPosting[];
+};
+
+type ApiAppliedBy = {
+  userId?: string;
+  username?: string;
+  UserID?: string;
+  Username?: string;
+};
+
+type ApiJobPosting = {
+  id?: string;
+  company?: string;
+  title?: string;
+  location?: string;
+  compensation?: string;
+  postedAt?: string;
+  appliedAt?: string;
+  url?: string;
+  appliedBy?: ApiAppliedBy[];
+  ID?: string;
+  Company?: string;
+  Title?: string;
+  Location?: string;
+  Compensation?: string;
+  PostedAt?: string;
+  AppliedAt?: string;
+  URL?: string;
+  AppliedBy?: ApiAppliedBy[];
 };
 
 function mapPreferences(preferences: ApiUserPreference | undefined): Profile["preferences"] {
@@ -55,8 +84,26 @@ function mapProfile(profile: ApiProfile): Profile {
     totalApplied: profile.totalApplied ?? profile.TotalApplied ?? 0,
     resumeFileName: profile.resumeFileName ?? profile.ResumeFileName,
     preferences: mapPreferences(profile.preferences ?? profile.Preferences),
-    appliedJobs: profile.appliedJobs ?? profile.AppliedJobs ?? [],
+    appliedJobs: mapJobs(profile.appliedJobs ?? profile.AppliedJobs),
   };
+}
+
+function mapJobs(jobs: ApiJobPosting[] | undefined): JobPosting[] {
+  if (!jobs) return [];
+  return jobs.map((job) => ({
+    id: job.id ?? job.ID ?? "",
+    company: job.company ?? job.Company ?? "Unknown company",
+    title: job.title ?? job.Title ?? "Unknown title",
+    location: job.location ?? job.Location ?? "Unknown location",
+    compensation: job.compensation ?? job.Compensation ?? "",
+    postedAt: job.postedAt ?? job.PostedAt ?? new Date(0).toISOString(),
+    appliedAt: job.appliedAt ?? job.AppliedAt,
+    url: job.url ?? job.URL ?? "",
+    appliedBy: (job.appliedBy ?? job.AppliedBy ?? []).map((user) => ({
+      userId: user.userId ?? user.UserID ?? "",
+      username: user.username ?? user.Username ?? "unknown",
+    })),
+  }));
 }
 
 export async function fetchProfile(userId: string, token: string, signal?: AbortSignal): Promise<Profile> {
@@ -64,7 +111,7 @@ export async function fetchProfile(userId: string, token: string, signal?: Abort
   return mapProfile(payload);
 }
 
-export async function updateProfile(update: Partial<Profile>, token: string): Promise<Profile> {
+export async function updateProfile(update: Partial<Profile> & { resumeContentBase64?: string }, token: string): Promise<Profile> {
   const payload = await requestJson<ApiProfile>("/api/profiles/me", "PATCH", update, { token });
   return mapProfile(payload);
 }

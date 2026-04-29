@@ -46,6 +46,17 @@ type Store struct {
 	GeneratedJobCount     int
 }
 
+type ScrapedJob struct {
+	Source       string `json:"source"`
+	ExternalID   string `json:"externalId"`
+	Company      string `json:"company"`
+	Title        string `json:"title"`
+	Location     string `json:"location"`
+	Compensation string `json:"compensation"`
+	PostedAt     string `json:"postedAt"`
+	URL          string `json:"url"`
+}
+
 func NewStore() *Store {
 	s := &Store{Users: map[string]User{}, Preferences: map[string]Preference{}, Jobs: map[string]JobPosting{}, NotificationFrequency: map[string]string{}}
 	s.Users["u_1"] = User{ID: "u_1", Email: "mason@example.com", Username: "mason", PasswordHash: "", IsPrivate: false}
@@ -174,6 +185,15 @@ func (s *Store) UpdateMe(userID string, patch map[string]any) (Profile, bool) {
 		s.Preferences[userID] = pref
 	}
 	p := Profile{ID: u.ID, Username: u.Username, Email: u.Email, IsPrivate: u.IsPrivate, Preferences: s.Preferences[userID]}
+	for _, d := range s.Decisions {
+		if d.UserID == userID && d.DecisionType == "APPLIED" {
+			if j, ok := s.Jobs[d.JobID]; ok {
+				j.PostedAt = d.DecisionAt
+				p.AppliedJobs = append(p.AppliedJobs, j)
+				p.TotalApplied++
+			}
+		}
+	}
 	return p, true
 }
 
@@ -224,4 +244,70 @@ func (s *Store) AddGeneratedJob() JobPosting {
 
 	s.Jobs[id] = posting
 	return posting
+}
+
+func (s *Store) IngestScrapedJobs(jobs []ScrapedJob) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	inserted := 0
+	for _, job := range jobs {
+		if strings.TrimSpace(job.URL) == "" || strings.TrimSpace(job.Title) == "" {
+			continue
+		}
+		exists := false
+		for _, existing := range s.Jobs {
+			if existing.URL == job.URL {
+				exists = true
+				break
+			}
+		}
+		if exists {
+			continue
+		}
+
+		id := "job_scraped_" + strings.ReplaceAll(strings.ToLower(time.Now().Format("20060102150405.000000000")), ".", "") + "_" + strings.ReplaceAll(strings.ToLower(job.Source), " ", "_")
+		if _, ok := s.Jobs[id]; ok {
+			id = id + "_" + strings.ReplaceAll(strings.ToLower(strings.TrimSpace(job.ExternalID)), " ", "_")
+		}
+
+		postedAt := job.PostedAt
+		if strings.TrimSpace(postedAt) == "" {
+			postedAt = time.Now().Format(time.RFC3339)
+		}
+
+		s.Jobs[id] = JobPosting{
+			ID:           id,
+			Company:      job.Company,
+			Title:        job.Title,
+			Location:     job.Location,
+			Compensation: job.Compensation,
+			PostedAt:     postedAt,
+			URL:          job.URL,
+			AppliedBy:    nil,
+		}
+		inserted++
+	}
+	return inserted
+}
+
+func (s *Store) WorkerKeywords() []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	seen := map[string]struct{}{}
+	out := make([]string, 0)
+	for _, pref := range s.Preferences {
+		for _, keyword := range pref.Keywords {
+			normalized := strings.ToLower(strings.TrimSpace(keyword))
+			if normalized == "" {
+				continue
+			}
+			if _, ok := seen[normalized]; ok {
+				continue
+			}
+			seen[normalized] = struct{}{}
+			out = append(out, normalized)
+		}
+	}
+	return out
 }

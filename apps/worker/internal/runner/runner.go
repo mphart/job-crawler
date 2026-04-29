@@ -1,7 +1,9 @@
 package runner
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -10,18 +12,22 @@ import (
 	"strings"
 	"time"
 
+	"job-crawler/apps/worker/internal/notify"
 	"job-crawler/apps/worker/internal/platform/config"
+	"job-crawler/apps/worker/internal/scraper"
 )
 
 type Runner struct {
-	cfg    config.Config
-	client *http.Client
+	cfg      config.Config
+	client   *http.Client
+	scrapeFn func(context.Context, *http.Client, []string) ([]scraper.ScrapedJob, error)
 }
 
 func New(cfg config.Config) Runner {
 	return Runner{
-		cfg:    cfg,
-		client: &http.Client{Timeout: cfg.RequestTimeout},
+		cfg:      cfg,
+		client:   &http.Client{Timeout: cfg.RequestTimeout},
+		scrapeFn: scraper.Scrape,
 	}
 }
 
@@ -61,15 +67,66 @@ func (r Runner) tick(ctx context.Context) error {
 	}
 
 	log.Printf("worker tick ok (%s)", healthURL)
-	return r.syncJobsWithRetry(ctx)
+	keywords, err := r.fetchKeywords(ctx)
+	if err != nil {
+		return fmt.Errorf("preferences fetch failed: %w", err)
+	}
+	jobs, err := r.scrapeFn(ctx, r.client, keywords)
+	if err != nil {
+		return fmt.Errorf("scrape failed: %w", err)
+	}
+	if len(jobs) == 0 {
+		return errors.New("scrape returned zero jobs")
+	}
+	if err := r.syncJobsWithRetry(ctx, jobs); err != nil {
+		return err
+	}
+	return r.sendDigests(ctx)
 }
 
-func (r Runner) syncJobs(ctx context.Context) error {
+func (r Runner) fetchKeywords(ctx context.Context) ([]string, error) {
+	endpoint := strings.TrimRight(r.cfg.APIBaseURL, "/") + "/api/worker/preferences"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	if r.cfg.APIToken != "" {
+		req.Header.Set("X-Worker-Token", r.cfg.APIToken)
+	}
+
+	res, err := r.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode < 200 || res.StatusCode > 299 {
+		body, _ := io.ReadAll(res.Body)
+		return nil, fmt.Errorf("preferences request failed with %d: %s", res.StatusCode, string(body))
+	}
+	var payload struct {
+		Keywords []string `json:"keywords"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&payload); err != nil {
+		return nil, err
+	}
+	if len(payload.Keywords) == 0 {
+		return []string{"software engineer"}, nil
+	}
+	return payload.Keywords, nil
+}
+
+func (r Runner) syncJobs(ctx context.Context, jobs []scraper.ScrapedJob) error {
 	syncURL := strings.TrimRight(r.cfg.APIBaseURL, "/") + "/api/worker/tick"
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, syncURL, nil)
+	payload, err := json.Marshal(jobs)
 	if err != nil {
 		return err
 	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, syncURL, bytes.NewReader(payload))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
 	if r.cfg.APIToken != "" {
 		req.Header.Set("X-Worker-Token", r.cfg.APIToken)
 	}
@@ -89,7 +146,7 @@ func (r Runner) syncJobs(ctx context.Context) error {
 	return nil
 }
 
-func (r Runner) syncJobsWithRetry(ctx context.Context) error {
+func (r Runner) syncJobsWithRetry(ctx context.Context, jobs []scraper.ScrapedJob) error {
 	attempts := r.cfg.MaxSyncRetries
 	if attempts < 1 {
 		attempts = 1
@@ -101,7 +158,7 @@ func (r Runner) syncJobsWithRetry(ctx context.Context) error {
 			return err
 		}
 
-		if err := r.syncJobs(ctx); err == nil {
+		if err := r.syncJobs(ctx, jobs); err == nil {
 			return nil
 		} else {
 			lastErr = err
@@ -136,4 +193,62 @@ func (r Runner) doRequest(req *http.Request, op string) error {
 	}
 
 	return nil
+}
+
+func (r Runner) sendDigests(ctx context.Context) error {
+	candidates, err := r.fetchDigestCandidates(ctx)
+	if err != nil {
+		return err
+	}
+	for _, candidate := range candidates {
+		if err := notify.SendDigest(r.cfg, candidate); err != nil {
+			log.Printf("digest send failed for %s: %v", candidate.Email, err)
+			continue
+		}
+		if err := r.markNotificationSent(ctx, candidate.UserID); err != nil {
+			log.Printf("failed to mark notification sent for %s: %v", candidate.UserID, err)
+		}
+	}
+	return nil
+}
+
+func (r Runner) fetchDigestCandidates(ctx context.Context) ([]notify.Candidate, error) {
+	endpoint := strings.TrimRight(r.cfg.APIBaseURL, "/") + "/api/worker/digest-candidates"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	if r.cfg.APIToken != "" {
+		req.Header.Set("X-Worker-Token", r.cfg.APIToken)
+	}
+	res, err := r.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode < 200 || res.StatusCode > 299 {
+		body, _ := io.ReadAll(res.Body)
+		return nil, fmt.Errorf("digest candidates request failed with %d: %s", res.StatusCode, string(body))
+	}
+	var payload struct {
+		Candidates []notify.Candidate `json:"candidates"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&payload); err != nil {
+		return nil, err
+	}
+	return payload.Candidates, nil
+}
+
+func (r Runner) markNotificationSent(ctx context.Context, userID string) error {
+	endpoint := strings.TrimRight(r.cfg.APIBaseURL, "/") + "/api/worker/notifications/sent"
+	body, _ := json.Marshal(map[string]string{"userId": userID})
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if r.cfg.APIToken != "" {
+		req.Header.Set("X-Worker-Token", r.cfg.APIToken)
+	}
+	return r.doRequest(req, "mark notification sent")
 }
