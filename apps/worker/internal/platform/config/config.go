@@ -1,45 +1,66 @@
 package config
 
 import (
-    "os"
-    "time"
+	"os"
+	"strconv"
+	"time"
 )
 
 type Config struct {
-    APIBaseURL   string
-    RunInterval  time.Duration
-    RequestTimeout time.Duration
-    BearerToken  string
-    APIToken     string
+	APIBaseURL     string
+	RunInterval    time.Duration
+	RequestTimeout time.Duration
+	BearerToken    string
+	APIToken       string
+	MaxSyncRetries int
+	RetryBackoff   time.Duration
 }
 
 func Load() Config {
-    return Config{
-        APIBaseURL: get("WORKER_API_BASE_URL", "http://api:8080"),
-        RunInterval: duration("WORKER_RUN_INTERVAL", 30*time.Second),
-        RequestTimeout: duration("WORKER_REQUEST_TIMEOUT", 5*time.Second),
-        BearerToken: os.Getenv("WORKER_BEARER_TOKEN"),
-        APIToken: get("WORKER_API_TOKEN", "worker-dev-token"),
-    }
+	return Config{
+		APIBaseURL:     get("WORKER_API_BASE_URL", "http://api:8080"),
+		RunInterval:    duration("WORKER_RUN_INTERVAL", 30*time.Second),
+		RequestTimeout: duration("WORKER_REQUEST_TIMEOUT", 5*time.Second),
+		BearerToken:    os.Getenv("WORKER_BEARER_TOKEN"),
+		APIToken:       get("WORKER_API_TOKEN", "worker-dev-token"),
+		MaxSyncRetries: intValue("WORKER_MAX_SYNC_RETRIES", 3),
+		RetryBackoff:   duration("WORKER_RETRY_BACKOFF", 1500*time.Millisecond),
+	}
 }
 
 func get(key, fallback string) string {
-    if value := os.Getenv(key); value != "" {
-        return value
-    }
-    return fallback
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return fallback
 }
 
 func duration(key string, fallback time.Duration) time.Duration {
-    value := os.Getenv(key)
-    if value == "" {
-        return fallback
-    }
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
 
-    parsed, err := time.ParseDuration(value)
-    if err != nil {
-        return fallback
-    }
+	parsed, err := time.ParseDuration(value)
+	if err != nil {
+		return fallback
+	}
 
-    return parsed
+	return parsed
+}
+
+func intValue(key string, fallback int) int {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return fallback
+	}
+	if parsed < 0 {
+		return fallback
+	}
+	return parsed
 }
