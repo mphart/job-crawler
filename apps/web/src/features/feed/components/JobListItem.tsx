@@ -1,3 +1,4 @@
+import React from "react";
 import { Button } from "../../../shared/components/Button";
 import { formatDate } from "../../../shared/utils/date";
 import { formatCompensation } from "../../../shared/utils/money";

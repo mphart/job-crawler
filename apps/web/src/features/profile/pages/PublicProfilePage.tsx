@@ -1,3 +1,4 @@
+import React from "react";
 import { useParams } from "react-router-dom";
 import { PageShell } from "../../../shared/components/PageShell";
 import { ApplicationHistory } from "../components/ApplicationHistory";

@@ -1,3 +1,4 @@
+import React from "react";
 import { EmptyState } from "../../../shared/components/EmptyState";
 import { JobPosting } from "../model/feed.types";
 import { JobListItem } from "./JobListItem";

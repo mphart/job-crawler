@@ -1,3 +1,4 @@
+import React from "react";
 import { BrowserRouter, useRoutes } from "react-router-dom";
 import { appRoutes } from "./routes";
 import { AppProviders } from "./providers";

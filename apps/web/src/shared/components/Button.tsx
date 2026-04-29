@@ -1,3 +1,4 @@
+import React from "react";
 import { ButtonHTMLAttributes } from "react";
 type Variant="primary"|"secondary"|"danger";
 type Props=ButtonHTMLAttributes<HTMLButtonElement>&{variant?:Variant};
