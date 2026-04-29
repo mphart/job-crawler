@@ -30,6 +30,7 @@ type Store struct {
     Jobs map[string]JobPosting
     Decisions []FeedDecision
     NotificationFrequency map[string]string
+    GeneratedJobCount int
 }
 
 func NewStore() *Store {
@@ -130,4 +131,34 @@ func (s *Store) SearchUsers(q string) []map[string]any {
         }
     }
     return out
+}
+
+func (s *Store) AddGeneratedJob() JobPosting {
+    s.mu.Lock()
+    defer s.mu.Unlock()
+
+    s.GeneratedJobCount++
+    id := "job_generated_" + time.Now().Format("20060102150405")
+    if _, exists := s.Jobs[id]; exists {
+        id = id + "_" + strings.ToLower(time.Now().Format("150405"))
+    }
+
+    companies := []string{"Acme Systems", "Northstar Labs", "Blue River Tech"}
+    titles := []string{"Backend Engineer", "Platform Engineer", "Full Stack Engineer"}
+    locations := []string{"Remote", "Austin, TX", "Minneapolis, MN"}
+    idx := s.GeneratedJobCount % len(companies)
+
+    posting := JobPosting{
+        ID: id,
+        Company: companies[idx],
+        Title: titles[idx],
+        Location: locations[idx],
+        Compensation: "$125k-$165k",
+        PostedAt: time.Now().Format(time.RFC3339),
+        URL: "https://example.com/jobs/" + id,
+        AppliedBy: nil,
+    }
+
+    s.Jobs[id] = posting
+    return posting
 }

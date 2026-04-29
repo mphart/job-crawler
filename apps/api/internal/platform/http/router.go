@@ -19,6 +19,7 @@ type Handlers struct {
     AuthSignup           http.HandlerFunc
     FeedList             http.HandlerFunc
     FeedAction           http.HandlerFunc
+    WorkerTick           http.HandlerFunc
     ProfileUpdateMe      http.HandlerFunc
     ProfileGetByID       http.HandlerFunc
     NotificationSettings http.HandlerFunc
@@ -42,5 +43,6 @@ func NewRouter(h Handlers) http.Handler {
     mux.HandleFunc("/api/profiles/", h.ProfileGetByID)
     mux.HandleFunc("/api/notifications/settings", h.NotificationSettings)
     mux.HandleFunc("/api/users/search", h.UsersSearch)
+    mux.HandleFunc("/api/worker/tick", h.WorkerTick)
     return CorsMiddleware(AuthMiddleware(mux))
 }

@@ -67,5 +67,30 @@ func (r Runner) tick(ctx context.Context) error {
     }
 
     log.Printf("worker tick ok (%s)", healthURL)
+    return r.syncJobs(ctx)
+}
+
+func (r Runner) syncJobs(ctx context.Context) error {
+    syncURL := strings.TrimRight(r.cfg.APIBaseURL, "/") + "/api/worker/tick"
+    req, err := http.NewRequestWithContext(ctx, http.MethodPost, syncURL, nil)
+    if err != nil {
+        return err
+    }
+    if r.cfg.APIToken != "" {
+        req.Header.Set("X-Worker-Token", r.cfg.APIToken)
+    }
+
+    response, err := r.client.Do(req)
+    if err != nil {
+        return err
+    }
+    defer response.Body.Close()
+
+    if response.StatusCode < 200 || response.StatusCode > 299 {
+        payload, _ := io.ReadAll(response.Body)
+        return fmt.Errorf("worker sync failed with %d: %s", response.StatusCode, string(payload))
+    }
+
+    log.Printf("worker sync ok (%s)", syncURL)
     return nil
 }

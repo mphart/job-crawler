@@ -10,6 +10,7 @@ type Config struct {
     RunInterval  time.Duration
     RequestTimeout time.Duration
     BearerToken  string
+    APIToken     string
 }
 
 func Load() Config {
@@ -18,6 +19,7 @@ func Load() Config {
         RunInterval: duration("WORKER_RUN_INTERVAL", 30*time.Second),
         RequestTimeout: duration("WORKER_REQUEST_TIMEOUT", 5*time.Second),
         BearerToken: os.Getenv("WORKER_BEARER_TOKEN"),
+        APIToken: get("WORKER_API_TOKEN", "worker-dev-token"),
     }
 }
 
