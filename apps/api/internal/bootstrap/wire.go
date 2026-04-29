@@ -29,6 +29,7 @@ func NewApp() App {
 	feedStore := feed.FeedStore(feed.InMemoryStore{Inner: store})
 	notificationStore := notifications.NotificationStore(notifications.InMemoryStore{Inner: store})
 	mysqlAuthStore, err := db.NewMySQLAuthStore(cfg.MySQLDSN)
+	var resumeDispatcher *profiles.ResumeParseDispatcher
 	if err != nil {
 		log.Printf("mysql auth store unavailable, using in-memory auth store: %v", err)
 	} else {
@@ -37,6 +38,7 @@ func NewApp() App {
 		userSearchStore = users.MySQLStore{Inner: mysqlAuthStore}
 		feedStore = feed.MySQLStore{Inner: mysqlAuthStore}
 		notificationStore = notifications.MySQLStore{Inner: mysqlAuthStore}
+		resumeDispatcher = profiles.NewResumeParseDispatcher(mysqlAuthStore)
 	}
 
 	handlers := httpx.Handlers{
@@ -48,8 +50,8 @@ func NewApp() App {
 		WorkerPreferences:      worker.Handler{Service: worker.Service{Store: store, MySQL: mysqlAuthStore}, WorkerToken: cfg.WorkerToken}.Preferences,
 		WorkerDigestCandidates: worker.Handler{Service: worker.Service{Store: store, MySQL: mysqlAuthStore}, WorkerToken: cfg.WorkerToken}.DigestCandidates,
 		WorkerNotificationSent: worker.Handler{Service: worker.Service{Store: store, MySQL: mysqlAuthStore}, WorkerToken: cfg.WorkerToken}.NotificationSent,
-		ProfileUpdateMe:        profiles.Handler{Service: profiles.Service{Store: profileStore}}.UpdateMe,
-		ProfileGetByID:         profiles.Handler{Service: profiles.Service{Store: profileStore}}.GetByID,
+		ProfileUpdateMe:        profiles.Handler{Service: profiles.Service{Store: profileStore, Dispatcher: resumeDispatcher}}.UpdateMe,
+		ProfileGetByID:         profiles.Handler{Service: profiles.Service{Store: profileStore, Dispatcher: resumeDispatcher}}.GetByID,
 		NotificationSettings:   notifications.Handler{Service: notifications.Service{Store: notificationStore}}.Update,
 		UsersSearch:            users.Handler{Service: users.Service{Store: userSearchStore}}.Search,
 	}
