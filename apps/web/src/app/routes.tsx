@@ -31,16 +31,16 @@ export const appRoutes: RouteObject[] = [
   {
     element: <GuestOnly />,
     children: [
-      { path: "/login", element: <LoginPage /> },
-      { path: "/signup", element: <SignupPage /> },
+      { path: "login", element: <LoginPage /> },
+      { path: "signup", element: <SignupPage /> },
     ],
   },
   {
     element: <RequireAuth />,
     children: [
-      { path: "/feed", element: <FeedPage /> },
-      { path: "/profile/me", element: <MyProfilePage /> },
-      { path: "/profile/:userId", element: <PublicProfilePage /> },
+      { path: "feed", element: <FeedPage /> },
+      { path: "profile/me", element: <MyProfilePage /> },
+      { path: "profile/:userId", element: <PublicProfilePage /> },
     ],
   },
 ];
