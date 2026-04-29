@@ -1,5 +1,6 @@
 import React from "react";
 import { useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { PageShell } from "../../../shared/components/PageShell";
 import { useDebouncedValue } from "../../../shared/hooks/useDebouncedValue";
 import { Button } from "../../../shared/components/Button";
@@ -14,6 +15,7 @@ import { EmptyState } from "../../../shared/components/EmptyState";
 import { useSession } from "../../auth/hooks/useSession";
 
 export function FeedPage() {
+  const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
   const { user, signOut } = useSession();
   const { filters, setSearch, setSortBy } = useFeedFilters();
@@ -36,6 +38,7 @@ export function FeedPage() {
   const actions = (
     <div style={{ display: "flex", gap: "0.5rem" }}>
       {user ? <UserSearchBar token={user.token} /> : null}
+      <Button variant="secondary" onClick={() => navigate("/profile/me")}>My profile</Button>
       <Button onClick={toggleTheme}>Theme: {theme}</Button>
       <Button variant="secondary" onClick={signOut}>Sign out</Button>
     </div>

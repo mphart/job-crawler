@@ -15,28 +15,49 @@ export function useFeedQuery(filters: FeedFilters, token: string | null) {
       return;
     }
 
-    const controller = new AbortController();
-    setLoading(true);
-    setError(null);
+    let activeController: AbortController | null = null;
+    let pollTimeout: ReturnType<typeof setTimeout> | null = null;
+    let firstLoad = true;
 
-    fetchFeed(filters, token, controller.signal)
-      .then((data) => {
+    const load = async () => {
+      activeController?.abort();
+      const controller = new AbortController();
+      activeController = controller;
+
+      if (firstLoad) {
+        setLoading(true);
+      }
+      setError(null);
+
+      try {
+        const data = await fetchFeed(filters, token, controller.signal);
         if (!controller.signal.aborted) {
           setJobs(data);
         }
-      })
-      .catch((err: unknown) => {
+      } catch (err: unknown) {
         if (!controller.signal.aborted) {
           setError(err instanceof Error ? err.message : "Failed to load feed.");
         }
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) {
+      } finally {
+        if (!controller.signal.aborted && firstLoad) {
           setLoading(false);
         }
-      });
+        firstLoad = false;
+      }
 
-    return () => controller.abort();
+      if (!controller.signal.aborted) {
+        pollTimeout = setTimeout(load, 10000);
+      }
+    };
+
+    void load();
+
+    return () => {
+      activeController?.abort();
+      if (pollTimeout) {
+        clearTimeout(pollTimeout);
+      }
+    };
   }, [filters, token]);
 
   return { jobs, loading, error, setJobs };

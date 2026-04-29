@@ -30,5 +30,7 @@ services:
       WORKER_RUN_INTERVAL: "30s"
       WORKER_REQUEST_TIMEOUT: "5s"
       WORKER_API_TOKEN: "worker-dev-token"
+      WORKER_MAX_SYNC_RETRIES: "5"
+      WORKER_RETRY_BACKOFF: "2s"
     depends_on:
       - api
