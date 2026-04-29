@@ -1,0 +1,6 @@
+import { FormEvent, useState } from "react";
+import { Button } from "../../../shared/components/Button";
+import { TextInput } from "../../../shared/components/TextInput";
+import { isEmail } from "../../../shared/utils/validation";
+import { signup } from "../api/auth.api";
+export function SignupForm({onSuccess}:{onSuccess:()=>void}){const [email,setEmail]=useState("");const [username,setUsername]=useState("");const [password,setPassword]=useState("");const [keywords,setKeywords]=useState("software engineer, frontend");async function handleSubmit(event:FormEvent){event.preventDefault();if(!isEmail(email)||username.trim().length<2||password.length<8)return;await signup({email,username,password,keywords:keywords.split(",").map((k)=>k.trim()).filter(Boolean)});onSuccess();}return <form onSubmit={handleSubmit} style={{display:"grid",gap:"0.75rem",maxWidth:520}}><TextInput value={email} onChange={(e)=>setEmail(e.target.value)} placeholder="Email"/><TextInput value={username} onChange={(e)=>setUsername(e.target.value)} placeholder="Username"/><TextInput value={password} onChange={(e)=>setPassword(e.target.value)} placeholder="Password" type="password"/><TextInput value={keywords} onChange={(e)=>setKeywords(e.target.value)} placeholder="Keywords (comma separated)"/><Button type="submit">Create account</Button></form>;}

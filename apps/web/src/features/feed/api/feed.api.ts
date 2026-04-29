@@ -1,0 +1,6 @@
+import { FeedFilters, JobPosting } from "../model/feed.types";
+const MOCK_JOBS:JobPosting[]=[{id:"job_1",company:"Cisco",title:"Software Engineer",location:"Austin, TX",compensation:"$130k-$155k",postedAt:new Date(Date.now()-86400000).toISOString(),url:"https://example.com/jobs/1",appliedBy:[{userId:"u_2",username:"alex"}]},{id:"job_2",company:"365 Retail Markets",title:"Frontend Engineer",location:"Remote",compensation:"$120k-$140k",postedAt:new Date(Date.now()-172800000).toISOString(),url:"https://example.com/jobs/2",appliedBy:[]}];
+// MOCK: Replace with backend feed endpoint.
+export async function fetchFeed(filters:FeedFilters):Promise<JobPosting[]>{const q=filters.search.toLowerCase();const filtered=MOCK_JOBS.filter((job)=>`${job.company} ${job.title} ${job.location}`.toLowerCase().includes(q));const sorted=[...filtered].sort((a,b)=>{if(filters.sortBy==="newest")return b.postedAt.localeCompare(a.postedAt);if(filters.sortBy==="company")return a.company.localeCompare(b.company);if(filters.sortBy==="title")return a.title.localeCompare(b.title);if(filters.sortBy==="location")return a.location.localeCompare(b.location);return b.compensation.localeCompare(a.compensation);});return Promise.resolve(sorted);}
+export async function markApplied(jobId:string):Promise<void>{void jobId;}
+export async function rejectPosting(jobId:string):Promise<void>{void jobId;}
