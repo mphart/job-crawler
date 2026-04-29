@@ -1,3 +1,4 @@
+import React from "react";
 import { useNavigate } from "react-router-dom";
 import { PageShell } from "../../../shared/components/PageShell";
 import { SignupForm } from "../components/SignupForm";

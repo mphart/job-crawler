@@ -1,3 +1,4 @@
+import React from "react";
 import { EmptyState } from "../../../shared/components/EmptyState";
 import { formatDate } from "../../../shared/utils/date";
 import { JobPosting } from "../../feed/model/feed.types";

@@ -1,3 +1,5 @@
+import React from "react";
+import React from 'react'
 import { PropsWithChildren } from "react";
 import { Navigate, RouteObject } from "react-router-dom";
 import { FeedPage } from "../features/feed/pages/FeedPage";
