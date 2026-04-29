@@ -12,17 +12,41 @@ type SessionContextType = {
 
 const SessionContext = createContext<SessionContextType | null>(null);
 
+function safeStorageGet(key: string): string | null {
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeStorageSet(key: string, value: string): void {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // DECISION: session persistence is optional; render should continue even when storage is blocked.
+  }
+}
+
+function safeStorageRemove(key: string): void {
+  try {
+    window.localStorage.removeItem(key);
+  } catch {
+    // ignore storage failures to keep UI responsive
+  }
+}
+
 export function SessionProvider({ children }: PropsWithChildren) {
   const [user, setUserState] = useState<SessionUser | null>(null);
   const [isHydrating, setIsHydrating] = useState(true);
 
   useEffect(() => {
-    const raw = window.localStorage.getItem(SESSION_KEY);
+    const raw = safeStorageGet(SESSION_KEY);
     if (raw) {
       try {
         setUserState(JSON.parse(raw) as SessionUser);
       } catch {
-        window.localStorage.removeItem(SESSION_KEY);
+        safeStorageRemove(SESSION_KEY);
       }
     }
     setIsHydrating(false);
@@ -31,9 +55,9 @@ export function SessionProvider({ children }: PropsWithChildren) {
   const setUser = (next: SessionUser | null) => {
     setUserState(next);
     if (next) {
-      window.localStorage.setItem(SESSION_KEY, JSON.stringify(next));
+      safeStorageSet(SESSION_KEY, JSON.stringify(next));
     } else {
-      window.localStorage.removeItem(SESSION_KEY);
+      safeStorageRemove(SESSION_KEY);
     }
   };
 
