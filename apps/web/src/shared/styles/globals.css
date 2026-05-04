@@ -6,12 +6,12 @@
 
 body {
   margin: 0;
-  font-family: Inter, system-ui, -apple-system, Segoe UI, sans-serif;
+  font-family: "DM Sans", Inter, system-ui, -apple-system, Segoe UI, sans-serif;
   background-color: var(--bg);
   background-image:
-    linear-gradient(180deg, color-mix(in srgb, var(--bg) 84%, white 16%), var(--bg)),
-    radial-gradient(circle at 14% 18%, color-mix(in srgb, var(--primary) 14%, transparent), transparent 40%),
-    radial-gradient(circle at 86% 12%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 34%);
+    linear-gradient(185deg, color-mix(in srgb, var(--bg) 78%, white 22%) 0%, var(--bg) 52%, color-mix(in srgb, var(--bg) 92%, var(--primary) 8%) 100%),
+    radial-gradient(ellipse 90% 60% at 10% 0%, color-mix(in srgb, var(--primary) 12%, transparent), transparent 55%),
+    radial-gradient(ellipse 70% 50% at 92% 8%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 50%);
   background-attachment: fixed;
   color: var(--text);
   line-height: 1.45;
@@ -49,6 +49,49 @@ h4 {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
+}
+
+.auth-card {
+  backdrop-filter: blur(14px);
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+
+.auth-fieldset {
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: var(--radius-md);
+  padding: 0.9rem 1rem 1rem;
+  margin: 0;
+}
+
+.auth-fieldset legend {
+  padding: 0 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.auth-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.auth-row-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+@media (max-width: 520px) {
+  .auth-row-2 {
+    grid-template-columns: 1fr;
+  }
 }
 
 .ui-pill {

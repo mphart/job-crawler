@@ -11,13 +11,21 @@ type InMemoryStore struct{ Inner *db.Store }
 
 func (s InMemoryStore) UpdateNotification(userID string, payload map[string]any) (map[string]any, error) {
 	if v, ok := payload["frequency"].(string); ok {
-		s.Inner.NotificationFrequency[userID] = v
+		s.Inner.NotificationFrequency[userID] = db.NormalizeNotificationFrequency(v)
 	}
-	return map[string]any{"emailOptIn": payload["emailOptIn"], "frequency": s.Inner.NotificationFrequency[userID]}, nil
+	f := s.Inner.NotificationFrequency[userID]
+	if f == "" {
+		f = "daily"
+	}
+	emailOptIn := true
+	if v, ok := payload["emailOptIn"].(bool); ok {
+		emailOptIn = v
+	}
+	return map[string]any{"emailOptIn": emailOptIn, "frequency": f}, nil
 }
 
 func (s InMemoryStore) GetNotification(userID string) (map[string]any, error) {
-	frequency := s.Inner.NotificationFrequency[userID]
+	frequency := db.NormalizeNotificationFrequency(s.Inner.NotificationFrequency[userID])
 	if frequency == "" {
 		frequency = "daily"
 	}

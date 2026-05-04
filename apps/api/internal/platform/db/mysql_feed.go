@@ -153,7 +153,7 @@ ON DUPLICATE KEY UPDATE decision_type = VALUES(decision_type), decision_at = VAL
 func (s *MySQLAuthStore) UpdateNotification(userID string, payload map[string]any) (map[string]any, error) {
 	frequency := "daily"
 	if v, ok := payload["frequency"].(string); ok && strings.TrimSpace(v) != "" {
-		frequency = strings.TrimSpace(v)
+		frequency = NormalizeNotificationFrequency(v)
 	}
 	emailOptIn := true
 	if v, ok := payload["emailOptIn"].(bool); ok {
@@ -186,6 +186,7 @@ func (s *MySQLAuthStore) GetNotification(userID string) (map[string]any, error) 
 	if strings.TrimSpace(frequency) == "" {
 		frequency = "daily"
 	}
+	frequency = NormalizeNotificationFrequency(frequency)
 	return map[string]any{"emailOptIn": emailOptIn, "frequency": frequency}, nil
 }
 
@@ -222,7 +223,7 @@ WHERE u.email_opt_in = TRUE
 		}
 
 		candidates = append(candidates, DigestCandidate{
-			UserID: userID, Email: email, Username: username, Frequency: frequency, Jobs: jobs,
+			UserID: userID, Email: email, Username: username, Frequency: NormalizeNotificationFrequency(frequency), Jobs: jobs,
 		})
 	}
 	return candidates, rows.Err()
@@ -292,18 +293,41 @@ func jobMatchesAny(job JobPosting, keywords []string) bool {
 	return false
 }
 
+// NormalizeNotificationFrequency maps legacy values and defaults unknowns to "daily".
+func NormalizeNotificationFrequency(raw string) string {
+	f := strings.TrimSpace(strings.ToLower(raw))
+	switch f {
+	case "daily", "twice-daily", "weekly":
+		return f
+	case "instant":
+		return "daily"
+	case "every-2-weeks":
+		return "weekly"
+	default:
+		return "daily"
+	}
+}
+
+func (s *MySQLAuthStore) SetNotificationFrequency(userID, rawFrequency string) error {
+	f := NormalizeNotificationFrequency(rawFrequency)
+	_, err := s.db.Exec(`
+INSERT INTO notification_settings (user_id, frequency) VALUES (?, ?)
+ON DUPLICATE KEY UPDATE frequency = VALUES(frequency)
+`, userID, f)
+	return err
+}
+
 func isDueForFrequency(lastSent, now time.Time, frequency string) bool {
 	if lastSent.IsZero() {
 		return true
 	}
+	f := NormalizeNotificationFrequency(frequency)
 	var interval time.Duration
-	switch frequency {
-	case "instant":
-		interval = 30 * time.Minute
+	switch f {
 	case "twice-daily":
 		interval = 12 * time.Hour
-	case "every-2-weeks":
-		interval = 14 * 24 * time.Hour
+	case "weekly":
+		interval = 7 * 24 * time.Hour
 	default:
 		interval = 24 * time.Hour
 	}

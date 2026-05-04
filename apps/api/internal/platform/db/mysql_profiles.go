@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"strings"
 	"time"
@@ -16,6 +17,8 @@ func (s *MySQLAuthStore) ensureProfileColumns() error {
 		"ALTER TABLE users ADD COLUMN IF NOT EXISTS dark_mode BOOLEAN NOT NULL DEFAULT FALSE",
 		"ALTER TABLE users ADD COLUMN IF NOT EXISTS min_comp INT NOT NULL DEFAULT 0",
 		"ALTER TABLE users ADD COLUMN IF NOT EXISTS keywords TEXT NULL",
+		"ALTER TABLE users ADD COLUMN IF NOT EXISTS locations TEXT NULL",
+		"ALTER TABLE users ADD COLUMN IF NOT EXISTS desired_titles TEXT NULL",
 	}
 	for _, q := range queries {
 		if _, err := s.db.Exec(q); err != nil {
@@ -54,9 +57,88 @@ func (s *MySQLAuthStore) WorkerKeywords() ([]string, error) {
 	return out, rows.Err()
 }
 
+func splitCommaPreserve(csv string) []string {
+	parts := strings.Split(csv, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		t := strings.TrimSpace(p)
+		if t != "" {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+func joinCommaLower(parts []string) string {
+	b := strings.Builder{}
+	for _, p := range parts {
+		p = strings.ToLower(strings.TrimSpace(p))
+		if p == "" {
+			continue
+		}
+		if b.Len() > 0 {
+			b.WriteString(",")
+		}
+		b.WriteString(p)
+	}
+	return b.String()
+}
+
+func joinCommaPreserve(parts []string) string {
+	b := strings.Builder{}
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		if b.Len() > 0 {
+			b.WriteString(",")
+		}
+		b.WriteString(p)
+	}
+	return b.String()
+}
+
+func stringSliceFromAny(v any) ([]string, bool) {
+	switch t := v.(type) {
+	case []string:
+		return t, true
+	case []any:
+		out := make([]string, 0, len(t))
+		for _, x := range t {
+			if s, ok := x.(string); ok && strings.TrimSpace(s) != "" {
+				out = append(out, strings.TrimSpace(s))
+			}
+		}
+		return out, true
+	default:
+		return nil, false
+	}
+}
+
+func intFromAny(v any) (int, bool) {
+	switch t := v.(type) {
+	case float64:
+		return int(t), true
+	case int:
+		return t, true
+	case int64:
+		return int(t), true
+	case json.Number:
+		i64, err := t.Int64()
+		if err != nil {
+			return 0, false
+		}
+		return int(i64), true
+	default:
+		return 0, false
+	}
+}
+
 func (s *MySQLAuthStore) Profile(requester, userID string) (Profile, bool, error) {
 	row := s.db.QueryRow(`
-SELECT id, email, username, is_private, resume_file_name, email_opt_in, dark_mode, min_comp
+SELECT id, email, username, is_private, resume_file_name, email_opt_in, dark_mode, min_comp,
+       IFNULL(keywords, ''), IFNULL(locations, ''), IFNULL(desired_titles, '')
 FROM users WHERE id = ? LIMIT 1
 `, userID)
 
@@ -64,8 +146,9 @@ FROM users WHERE id = ? LIMIT 1
 	var isPrivate, emailOptIn, darkMode bool
 	var resume sql.NullString
 	var minComp int
+	var keywordCSV, locationCSV, titlesCSV string
 
-	if err := row.Scan(&id, &email, &username, &isPrivate, &resume, &emailOptIn, &darkMode, &minComp); err != nil {
+	if err := row.Scan(&id, &email, &username, &isPrivate, &resume, &emailOptIn, &darkMode, &minComp, &keywordCSV, &locationCSV, &titlesCSV); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Profile{}, false, nil
 		}
@@ -79,9 +162,9 @@ FROM users WHERE id = ? LIMIT 1
 		IsPrivate:      isPrivate,
 		ResumeFileName: resume.String,
 		Preferences: Preference{
-			Keywords:      []string{},
-			Locations:     []string{},
-			DesiredTitles: []string{},
+			Keywords:      splitKeywords(keywordCSV),
+			Locations:     splitCommaPreserve(locationCSV),
+			DesiredTitles: splitCommaPreserve(titlesCSV),
 			MinComp:       minComp,
 			EmailOptIn:    emailOptIn,
 			DarkMode:      darkMode,
@@ -123,8 +206,8 @@ ORDER BY d.decision_at DESC
 }
 
 func (s *MySQLAuthStore) UpdateMe(userID string, patch map[string]any) (Profile, bool, error) {
-	assignments := make([]string, 0, 4)
-	args := make([]any, 0, 5)
+	assignments := make([]string, 0, 12)
+	args := make([]any, 0, 14)
 
 	if v, ok := patch["isPrivate"].(bool); ok {
 		assignments = append(assignments, "is_private = ?")
@@ -147,9 +230,32 @@ func (s *MySQLAuthStore) UpdateMe(userID string, patch map[string]any) (Profile,
 			assignments = append(assignments, "dark_mode = ?")
 			args = append(args, v)
 		}
-		if v, ok := pref["minComp"].(float64); ok {
-			assignments = append(assignments, "min_comp = ?")
-			args = append(args, int(v))
+		if v, ok := pref["minComp"]; ok {
+			if n, ok2 := intFromAny(v); ok2 {
+				assignments = append(assignments, "min_comp = ?")
+				args = append(args, n)
+			}
+		}
+		if v, ok := pref["keywords"]; ok {
+			if parts, ok2 := stringSliceFromAny(v); ok2 {
+				csv := joinCommaLower(parts)
+				assignments = append(assignments, "keywords = ?")
+				args = append(args, csv)
+			}
+		}
+		if v, ok := pref["locations"]; ok {
+			if parts, ok2 := stringSliceFromAny(v); ok2 {
+				csv := joinCommaPreserve(parts)
+				assignments = append(assignments, "locations = ?")
+				args = append(args, csv)
+			}
+		}
+		if v, ok := pref["desiredTitles"]; ok {
+			if parts, ok2 := stringSliceFromAny(v); ok2 {
+				csv := joinCommaPreserve(parts)
+				assignments = append(assignments, "desired_titles = ?")
+				args = append(args, csv)
+			}
 		}
 	}
 

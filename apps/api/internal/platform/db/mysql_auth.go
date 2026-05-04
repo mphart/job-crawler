@@ -1,7 +1,9 @@
 package db
 
 import (
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"strings"
 
@@ -34,6 +36,14 @@ func NewMySQLAuthStore(dsn string) (*MySQLAuthStore, error) {
 	return store, nil
 }
 
+func randomUserID() (string, error) {
+	var buf [10]byte
+	if _, err := rand.Read(buf[:]); err != nil {
+		return "", err
+	}
+	return "u_" + hex.EncodeToString(buf[:]), nil
+}
+
 func (s *MySQLAuthStore) ensureSchema() error {
 	_, err := s.db.Exec(`
 CREATE TABLE IF NOT EXISTS users (
@@ -55,12 +65,12 @@ CREATE TABLE IF NOT EXISTS users (
 }
 
 func (s *MySQLAuthStore) CreateUser(email, username, passwordHash string, keywords []string) (AuthUser, error) {
-	id := "u_" + strings.ReplaceAll(strings.ToLower(username), " ", "-")
-	if id == "u_" {
-		id = "u_new"
+	id, err := randomUserID()
+	if err != nil {
+		return AuthUser{}, err
 	}
 	keywordCSV := strings.Join(keywords, ",")
-	_, err := s.db.Exec(
+	_, err = s.db.Exec(
 		"INSERT INTO users (id, email, username, password_hash, keywords) VALUES (?, ?, ?, ?, ?)",
 		id,
 		email,
@@ -75,7 +85,10 @@ func (s *MySQLAuthStore) CreateUser(email, username, passwordHash string, keywor
 }
 
 func (s *MySQLAuthStore) FindUserByEmail(email string) (AuthUser, bool, error) {
-	row := s.db.QueryRow("SELECT id, email, username, password_hash FROM users WHERE email = ? LIMIT 1", email)
+	row := s.db.QueryRow(
+		"SELECT id, email, username, password_hash FROM users WHERE LOWER(TRIM(email)) = ? LIMIT 1",
+		email,
+	)
 	var user AuthUser
 	if err := row.Scan(&user.ID, &user.Email, &user.Username, &user.PasswordHash); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

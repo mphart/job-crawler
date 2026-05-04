@@ -18,7 +18,21 @@ export function PageShell({ title, actions, children }: PropsWithChildren<{ titl
           boxShadow: "var(--shadow)",
         }}
       >
-        <h1 style={{ margin: 0, fontSize: "1.42rem", fontWeight: 800 }}>{title}</h1>
+        <h1
+          style={{
+            margin: 0,
+            fontSize: "1.42rem",
+            fontWeight: 800,
+            lineHeight: 1.25,
+            minWidth: 0,
+            flex: "1 1 auto",
+            overflowWrap: "break-word",
+            wordBreak: "break-word",
+            paddingRight: "0.35rem",
+          }}
+        >
+          {title}
+        </h1>
         {actions}
       </header>
       {children}
