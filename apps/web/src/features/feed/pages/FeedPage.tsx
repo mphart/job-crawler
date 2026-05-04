@@ -44,8 +44,11 @@ export function FeedPage() {
     </div>
   );
 
+  const displayName = (user?.username ?? "").trim().replace(/\s+/g, " ");
+  const welcomeTitle = displayName ? `Welcome back, ${displayName}` : "Welcome back";
+
   return (
-    <PageShell title="Welcome Back" actions={actions}>
+    <PageShell title={welcomeTitle} actions={actions}>
       <FeedFilters search={filters.search} sortBy={filters.sortBy} onSearch={setSearch} onSort={setSortBy} />
       {loading ? <p>Loading feed...</p> : null}
       {error ? <EmptyState title="Unable to load feed" description={error} /> : null}

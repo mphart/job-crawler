@@ -1,6 +1,7 @@
 import React from "react";
 import { useState } from "react";
 import { Button } from "../../../shared/components/Button";
+import { fileToBase64 } from "../../../shared/utils/file";
 
 export function ResumeUploader({
   current,
@@ -33,6 +34,7 @@ export function ResumeUploader({
           setStatus("Uploaded.");
           window.alert("Resume uploaded.");
         }}
+        disabled={!contentBase64}
       >
         Upload Resume
       </Button>
@@ -42,15 +44,3 @@ export function ResumeUploader({
   );
 }
 
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = String(reader.result ?? "");
-      const base64 = dataUrl.includes(",") ? dataUrl.split(",")[1] : "";
-      resolve(base64);
-    };
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
-}

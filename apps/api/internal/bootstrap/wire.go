@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"errors"
 	"log"
 	"net/http"
 
@@ -13,6 +14,7 @@ import (
 	"job-crawler/apps/api/internal/platform/config"
 	"job-crawler/apps/api/internal/platform/db"
 	httpx "job-crawler/apps/api/internal/platform/http"
+	"job-crawler/apps/api/internal/platform/mail"
 )
 
 type App struct {
@@ -41,9 +43,67 @@ func NewApp() App {
 		resumeDispatcher = profiles.NewResumeParseDispatcher(mysqlAuthStore)
 	}
 
+	mailSender := mail.NewSender(mail.Config{
+		Host:     cfg.SMTPHost,
+		Port:     cfg.SMTPPort,
+		Username: cfg.SMTPUser,
+		Password: cfg.SMTPPass,
+		From:     cfg.SMTPFrom,
+	})
+	if mailSender.HasHost() {
+		if err := mailSender.ValidateSMTP(); err != nil {
+			log.Printf("api: SMTP incomplete — welcome emails will fail until fixed: %v", err)
+		} else {
+			log.Printf("api: transactional SMTP configured (host=%q from=%q)", cfg.SMTPHost, cfg.SMTPFrom)
+		}
+	} else {
+		log.Printf("api: transactional SMTP disabled — set WORKER_SMTP_HOST (and username, password, from) in .env; Compose maps them to the API container")
+	}
+
+	var applySignupProfile auth.ProfileApplyFunc
+	if mysqlAuthStore != nil {
+		applySignupProfile = func(userID string, patch map[string]any) error {
+			_, ok, err := mysqlAuthStore.UpdateMe(userID, patch)
+			if err != nil {
+				return err
+			}
+			if !ok {
+				return errors.New("could not save profile after signup")
+			}
+			return nil
+		}
+	} else {
+		applySignupProfile = func(userID string, patch map[string]any) error {
+			_, ok := store.UpdateMe(userID, patch)
+			if !ok {
+				return errors.New("could not save profile after signup")
+			}
+			return nil
+		}
+	}
+
+	var applyNotificationFrequency auth.NotificationFrequencyApplyFunc
+	if mysqlAuthStore != nil {
+		applyNotificationFrequency = func(userID string, raw string) error {
+			return mysqlAuthStore.SetNotificationFrequency(userID, raw)
+		}
+	} else {
+		applyNotificationFrequency = func(userID string, raw string) error {
+			store.NotificationFrequency[userID] = db.NormalizeNotificationFrequency(raw)
+			return nil
+		}
+	}
+
+	authSvc := auth.Service{
+		Store:                      authStore,
+		Mail:                       mailSender,
+		ApplyProfile:               applySignupProfile,
+		ApplyNotificationFrequency: applyNotificationFrequency,
+	}
+
 	handlers := httpx.Handlers{
-		AuthLogin:              auth.Handler{Service: auth.Service{Store: authStore}}.Login,
-		AuthSignup:             auth.Handler{Service: auth.Service{Store: authStore}}.Signup,
+		AuthLogin:              auth.Handler{Service: authSvc}.Login,
+		AuthSignup:             auth.Handler{Service: authSvc}.Signup,
 		FeedList:               feed.Handler{Service: feed.Service{Store: feedStore}}.List,
 		FeedAction:             feed.Handler{Service: feed.Service{Store: feedStore}}.Action,
 		WorkerTick:             worker.Handler{Service: worker.Service{Store: store, MySQL: mysqlAuthStore}, WorkerToken: cfg.WorkerToken}.Tick,

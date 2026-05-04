@@ -1,6 +1,8 @@
 package db
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"sort"
 	"strings"
@@ -11,6 +13,7 @@ import (
 type User struct {
 	ID, Email, Username, PasswordHash string
 	IsPrivate                         bool
+	ResumeFileName                    string
 }
 type Preference struct {
 	Keywords, Locations, DesiredTitles []string
@@ -71,9 +74,14 @@ func NewStore() *Store {
 func (s *Store) CreateUser(email, username, passwordHash string, keywords []string) User {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	id := "u_" + strings.ReplaceAll(strings.ToLower(username), " ", "-")
-	if id == "u_" {
-		id = "u_new"
+	var id string
+	for {
+		var buf [10]byte
+		_, _ = rand.Read(buf[:])
+		id = "u_" + hex.EncodeToString(buf[:])
+		if _, taken := s.Users[id]; !taken {
+			break
+		}
 	}
 	u := User{ID: id, Email: email, Username: username, PasswordHash: passwordHash}
 	s.Users[id] = u
@@ -147,7 +155,14 @@ func (s *Store) Profile(requester, userID string) (Profile, bool) {
 	if !ok {
 		return Profile{}, false
 	}
-	p := Profile{ID: u.ID, Username: u.Username, Email: u.Email, IsPrivate: u.IsPrivate, Preferences: s.Preferences[userID]}
+	p := Profile{
+		ID:             u.ID,
+		Username:       u.Username,
+		Email:          u.Email,
+		IsPrivate:      u.IsPrivate,
+		ResumeFileName: u.ResumeFileName,
+		Preferences:    s.Preferences[userID],
+	}
 	for _, d := range s.Decisions {
 		if d.UserID == userID && d.DecisionType == "APPLIED" {
 			if j, ok := s.Jobs[d.JobID]; ok {
@@ -163,6 +178,33 @@ func (s *Store) Profile(requester, userID string) (Profile, bool) {
 	return p, true
 }
 
+func mongoStringSlice(v any) []string {
+	switch t := v.(type) {
+	case []string:
+		out := make([]string, 0, len(t))
+		for _, s := range t {
+			s = strings.TrimSpace(s)
+			if s != "" {
+				out = append(out, s)
+			}
+		}
+		return out
+	case []any:
+		out := make([]string, 0, len(t))
+		for _, x := range t {
+			if s, ok := x.(string); ok {
+				s = strings.TrimSpace(s)
+				if s != "" {
+					out = append(out, s)
+				}
+			}
+		}
+		return out
+	default:
+		return nil
+	}
+}
+
 func (s *Store) UpdateMe(userID string, patch map[string]any) (Profile, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -175,6 +217,10 @@ func (s *Store) UpdateMe(userID string, patch map[string]any) (Profile, bool) {
 	}
 	s.Users[userID] = u
 	if v, ok := patch["resumeFileName"].(string); ok {
+		u.ResumeFileName = v
+		s.Users[userID] = u
+	}
+	if v, ok := patch["resumeContentBase64"].(string); ok {
 		_ = v
 	}
 	if raw, ok := patch["preferences"].(map[string]any); ok {
@@ -182,9 +228,37 @@ func (s *Store) UpdateMe(userID string, patch map[string]any) (Profile, bool) {
 		if v, ok := raw["emailOptIn"].(bool); ok {
 			pref.EmailOptIn = v
 		}
+		if v, ok := raw["darkMode"].(bool); ok {
+			pref.DarkMode = v
+		}
+		switch v := raw["minComp"].(type) {
+		case float64:
+			pref.MinComp = int(v)
+		case int:
+			pref.MinComp = v
+		case int64:
+			pref.MinComp = int(v)
+		}
+		if v, ok := raw["keywords"]; ok {
+			pref.Keywords = mongoStringSlice(v)
+		}
+		if v, ok := raw["locations"]; ok {
+			pref.Locations = mongoStringSlice(v)
+		}
+		if v, ok := raw["desiredTitles"]; ok {
+			pref.DesiredTitles = mongoStringSlice(v)
+		}
 		s.Preferences[userID] = pref
 	}
-	p := Profile{ID: u.ID, Username: u.Username, Email: u.Email, IsPrivate: u.IsPrivate, Preferences: s.Preferences[userID]}
+	u = s.Users[userID]
+	p := Profile{
+		ID:             u.ID,
+		Username:       u.Username,
+		Email:          u.Email,
+		IsPrivate:      u.IsPrivate,
+		ResumeFileName: u.ResumeFileName,
+		Preferences:    s.Preferences[userID],
+	}
 	for _, d := range s.Decisions {
 		if d.UserID == userID && d.DecisionType == "APPLIED" {
 			if j, ok := s.Jobs[d.JobID]; ok {

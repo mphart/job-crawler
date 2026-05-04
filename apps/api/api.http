@@ -5,7 +5,7 @@ GET http://localhost:8080/healthz
 POST http://localhost:8080/api/auth/signup
 Content-Type: application/json
 
-{"email":"user@example.com","username":"user","password":"password123","keywords":["frontend"]}
+{"email":"user@example.com","name":"User Name","password":"password123","notificationFrequency":"daily","preferences":{"keywords":["frontend"],"locations":["Remote"],"desiredTitles":["Engineer"],"minComp":120000,"emailOptIn":true,"darkMode":false}}
 
 ### login
 POST http://localhost:8080/api/auth/login
