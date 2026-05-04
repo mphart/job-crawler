@@ -19,6 +19,15 @@ func (s *MySQLAuthStore) ensureProfileColumns() error {
 		"ALTER TABLE users ADD COLUMN IF NOT EXISTS keywords TEXT NULL",
 		"ALTER TABLE users ADD COLUMN IF NOT EXISTS locations TEXT NULL",
 		"ALTER TABLE users ADD COLUMN IF NOT EXISTS desired_titles TEXT NULL",
+		`CREATE TABLE IF NOT EXISTS resume_signals (
+  user_id VARCHAR(64) PRIMARY KEY,
+  keywords TEXT NULL,
+  role_families TEXT NULL,
+  locations TEXT NULL,
+  parse_status VARCHAR(32) NOT NULL DEFAULT 'pending',
+  parse_error TEXT NULL,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
 	}
 	for _, q := range queries {
 		if _, err := s.db.Exec(q); err != nil {
@@ -26,6 +35,15 @@ func (s *MySQLAuthStore) ensureProfileColumns() error {
 		}
 	}
 	return nil
+}
+
+type ResumeSignals struct {
+	UserID       string
+	Keywords     []string
+	RoleFamilies []string
+	Locations    []string
+	ParseStatus  string
+	ParseError   string
 }
 
 func (s *MySQLAuthStore) WorkerKeywords() ([]string, error) {
@@ -133,6 +151,40 @@ func intFromAny(v any) (int, bool) {
 	default:
 		return 0, false
 	}
+}
+
+func (s *MySQLAuthStore) UpsertResumeSignals(signals ResumeSignals) error {
+	_, err := s.db.Exec(`
+INSERT INTO resume_signals (user_id, keywords, role_families, locations, parse_status, parse_error)
+VALUES (?, ?, ?, ?, ?, ?)
+ON DUPLICATE KEY UPDATE
+  keywords = VALUES(keywords),
+  role_families = VALUES(role_families),
+  locations = VALUES(locations),
+  parse_status = VALUES(parse_status),
+  parse_error = VALUES(parse_error)
+`, signals.UserID, strings.Join(signals.Keywords, ","), strings.Join(signals.RoleFamilies, ","), strings.Join(signals.Locations, ","), signals.ParseStatus, signals.ParseError)
+	return err
+}
+
+func (s *MySQLAuthStore) GetResumeSignals(userID string) (ResumeSignals, bool, error) {
+	row := s.db.QueryRow(`
+SELECT user_id, keywords, role_families, locations, parse_status, IFNULL(parse_error, '')
+FROM resume_signals
+WHERE user_id = ? LIMIT 1
+`, userID)
+	var signals ResumeSignals
+	var keywordsCSV, roleCSV, locationsCSV string
+	if err := row.Scan(&signals.UserID, &keywordsCSV, &roleCSV, &locationsCSV, &signals.ParseStatus, &signals.ParseError); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ResumeSignals{}, false, nil
+		}
+		return ResumeSignals{}, false, err
+	}
+	signals.Keywords = splitKeywords(keywordsCSV)
+	signals.RoleFamilies = splitKeywords(roleCSV)
+	signals.Locations = splitKeywords(locationsCSV)
+	return signals, true, nil
 }
 
 func (s *MySQLAuthStore) Profile(requester, userID string) (Profile, bool, error) {

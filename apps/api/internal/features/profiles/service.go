@@ -33,11 +33,27 @@ func (s MySQLStore) UpdateMe(userID string, patch map[string]any) (db.Profile, b
 	return s.Inner.UpdateMe(userID, patch)
 }
 
-type Service struct{ Store ProfileStore }
+type ParseDispatcher interface {
+	Enqueue(userID, resumeContentBase64 string) error
+}
+
+type Service struct {
+	Store      ProfileStore
+	Dispatcher ParseDispatcher
+}
 
 func (s Service) Get(requester, userID string) (db.Profile, bool, error) {
 	return s.Store.Profile(requester, userID)
 }
 func (s Service) UpdateMe(userID string, patch map[string]any) (db.Profile, bool, error) {
-	return s.Store.UpdateMe(userID, patch)
+	p, ok, err := s.Store.UpdateMe(userID, patch)
+	if err != nil || !ok {
+		return p, ok, err
+	}
+	if s.Dispatcher != nil {
+		if raw, exists := patch["resumeContentBase64"].(string); exists && raw != "" {
+			_ = s.Dispatcher.Enqueue(userID, raw)
+		}
+	}
+	return p, ok, nil
 }
