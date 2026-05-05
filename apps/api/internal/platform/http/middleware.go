@@ -28,7 +28,7 @@ func CorsMiddleware(next http.Handler) http.Handler {
 
 func AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/healthz" || r.URL.Path == "/api/auth/login" || r.URL.Path == "/api/auth/signup" || r.URL.Path == "/api/worker/tick" || r.URL.Path == "/api/worker/preferences" || r.URL.Path == "/api/worker/digest-candidates" || r.URL.Path == "/api/worker/notifications/sent" {
+		if r.URL.Path == "/healthz" || r.URL.Path == "/api/auth/login" || r.URL.Path == "/api/auth/signup" || r.URL.Path == "/api/companies/search" || r.URL.Path == "/api/worker/tick" || r.URL.Path == "/api/worker/preferences" || r.URL.Path == "/api/worker/digest-candidates" || r.URL.Path == "/api/worker/notifications/sent" {
 			next.ServeHTTP(w, r)
 			return
 		}

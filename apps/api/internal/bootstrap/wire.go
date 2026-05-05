@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"job-crawler/apps/api/internal/features/auth"
+	"job-crawler/apps/api/internal/features/companies"
 	"job-crawler/apps/api/internal/features/feed"
 	"job-crawler/apps/api/internal/features/notifications"
 	"job-crawler/apps/api/internal/features/profiles"
@@ -29,6 +30,7 @@ func NewApp() App {
 	profileStore := profiles.ProfileStore(profiles.InMemoryStore{Inner: store})
 	userSearchStore := users.UserSearchStore(users.InMemoryStore{Inner: store})
 	feedStore := feed.FeedStore(feed.InMemoryStore{Inner: store})
+	companyStore := companies.CompanyStore(companies.InMemoryStore{Inner: store})
 	notificationStore := notifications.NotificationStore(notifications.InMemoryStore{Inner: store})
 	mysqlAuthStore, err := db.NewMySQLAuthStore(cfg.MySQLDSN)
 	var resumeDispatcher *profiles.ResumeParseDispatcher
@@ -39,6 +41,7 @@ func NewApp() App {
 		profileStore = profiles.MySQLStore{Inner: mysqlAuthStore}
 		userSearchStore = users.MySQLStore{Inner: mysqlAuthStore}
 		feedStore = feed.MySQLStore{Inner: mysqlAuthStore}
+		companyStore = companies.MySQLStore{Inner: mysqlAuthStore}
 		notificationStore = notifications.MySQLStore{Inner: mysqlAuthStore}
 		resumeDispatcher = profiles.NewResumeParseDispatcher(mysqlAuthStore)
 	}
@@ -114,6 +117,7 @@ func NewApp() App {
 		ProfileGetByID:         profiles.Handler{Service: profiles.Service{Store: profileStore, Dispatcher: resumeDispatcher}}.GetByID,
 		NotificationSettings:   notifications.Handler{Service: notifications.Service{Store: notificationStore}}.Update,
 		UsersSearch:            users.Handler{Service: users.Service{Store: userSearchStore}}.Search,
+		CompaniesSearch:        companies.Handler{Service: companies.Service{Store: companyStore}}.Search,
 	}
 
 	return App{Config: cfg, Router: httpx.NewRouter(handlers)}

@@ -32,8 +32,33 @@ func New(cfg config.Config) Runner {
 }
 
 func (r Runner) Run(ctx context.Context) error {
-	if err := r.tick(ctx); err != nil {
-		log.Printf("initial worker tick failed: %v", err)
+	insertedTotal := 0
+	startupAttempts := r.cfg.StartupMaxAttempts
+	if startupAttempts < 1 {
+		startupAttempts = 1
+	}
+	for attempt := 1; attempt <= startupAttempts; attempt++ {
+		inserted, err := r.tick(ctx)
+		if err != nil {
+			log.Printf("startup worker tick %d failed: %v", attempt, err)
+		} else {
+			insertedTotal += inserted
+			log.Printf("startup worker tick %d inserted %d jobs (running total=%d, target=%d)", attempt, inserted, insertedTotal, r.cfg.StartupMinJobs)
+		}
+		if insertedTotal >= r.cfg.StartupMinJobs {
+			break
+		}
+		if attempt == startupAttempts {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-time.After(r.cfg.StartupRetryInterval):
+		}
+	}
+	if insertedTotal < r.cfg.StartupMinJobs {
+		log.Printf("startup target not reached: inserted %d of desired %d before switching to interval schedule", insertedTotal, r.cfg.StartupMinJobs)
 	}
 
 	ticker := time.NewTicker(r.cfg.RunInterval)
@@ -44,18 +69,18 @@ func (r Runner) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
-			if err := r.tick(ctx); err != nil {
+			if _, err := r.tick(ctx); err != nil {
 				log.Printf("worker tick failed: %v", err)
 			}
 		}
 	}
 }
 
-func (r Runner) tick(ctx context.Context) error {
+func (r Runner) tick(ctx context.Context) (int, error) {
 	healthURL := strings.TrimRight(r.cfg.APIBaseURL, "/") + "/healthz"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, healthURL, nil)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	if r.cfg.BearerToken != "" {
@@ -63,25 +88,36 @@ func (r Runner) tick(ctx context.Context) error {
 	}
 
 	if err := r.doRequest(req, "health request"); err != nil {
-		return err
+		return 0, err
 	}
 
 	log.Printf("worker tick ok (%s)", healthURL)
 	keywords, err := r.fetchKeywords(ctx)
 	if err != nil {
-		return fmt.Errorf("preferences fetch failed: %w", err)
+		return 0, fmt.Errorf("preferences fetch failed: %w", err)
 	}
 	jobs, err := r.scrapeFn(ctx, r.client, keywords)
 	if err != nil {
-		return fmt.Errorf("scrape failed: %w", err)
+		return 0, fmt.Errorf("scrape failed: %w", err)
 	}
 	if len(jobs) == 0 {
-		return errors.New("scrape returned zero jobs")
+		return 0, errors.New("scrape returned zero jobs")
 	}
-	if err := r.syncJobsWithRetry(ctx, jobs); err != nil {
-		return err
+	maxJobs := r.cfg.StartupMaxJobs
+	if maxJobs < 1 {
+		maxJobs = 50
 	}
-	return r.sendDigests(ctx)
+	if len(jobs) > maxJobs {
+		jobs = jobs[:maxJobs]
+	}
+	inserted, err := r.syncJobsWithRetry(ctx, jobs)
+	if err != nil {
+		return 0, err
+	}
+	if err := r.sendDigests(ctx); err != nil {
+		return inserted, err
+	}
+	return inserted, nil
 }
 
 func (r Runner) fetchKeywords(ctx context.Context) ([]string, error) {
@@ -115,16 +151,16 @@ func (r Runner) fetchKeywords(ctx context.Context) ([]string, error) {
 	return payload.Keywords, nil
 }
 
-func (r Runner) syncJobs(ctx context.Context, jobs []scraper.ScrapedJob) error {
+func (r Runner) syncJobs(ctx context.Context, jobs []scraper.ScrapedJob) (int, error) {
 	syncURL := strings.TrimRight(r.cfg.APIBaseURL, "/") + "/api/worker/tick"
 	payload, err := json.Marshal(jobs)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, syncURL, bytes.NewReader(payload))
 	if err != nil {
-		return err
+		return 0, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	if r.cfg.APIToken != "" {
@@ -133,33 +169,45 @@ func (r Runner) syncJobs(ctx context.Context, jobs []scraper.ScrapedJob) error {
 
 	response, err := r.client.Do(req)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer response.Body.Close()
 
 	if response.StatusCode < 200 || response.StatusCode > 299 {
 		payload, _ := io.ReadAll(response.Body)
-		return fmt.Errorf("worker sync failed with %d: %s", response.StatusCode, string(payload))
+		return 0, fmt.Errorf("worker sync failed with %d: %s", response.StatusCode, string(payload))
+	}
+	var out struct {
+		Inserted int `json:"inserted"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&out); err != nil {
+		if !errors.Is(err, io.EOF) {
+			log.Printf("worker sync decode warning: %v", err)
+		}
+		out.Inserted = len(jobs)
 	}
 
 	log.Printf("worker sync ok (%s)", syncURL)
-	return nil
+	return out.Inserted, nil
 }
 
-func (r Runner) syncJobsWithRetry(ctx context.Context, jobs []scraper.ScrapedJob) error {
+func (r Runner) syncJobsWithRetry(ctx context.Context, jobs []scraper.ScrapedJob) (int, error) {
 	attempts := r.cfg.MaxSyncRetries
 	if attempts < 1 {
 		attempts = 1
 	}
 
 	var lastErr error
+	inserted := 0
 	for attempt := 1; attempt <= attempts; attempt++ {
 		if err := ctx.Err(); err != nil {
-			return err
+			return 0, err
 		}
 
-		if err := r.syncJobs(ctx, jobs); err == nil {
-			return nil
+		n, err := r.syncJobs(ctx, jobs)
+		if err == nil {
+			inserted = n
+			return inserted, nil
 		} else {
 			lastErr = err
 			if attempt == attempts {
@@ -168,13 +216,13 @@ func (r Runner) syncJobsWithRetry(ctx context.Context, jobs []scraper.ScrapedJob
 			log.Printf("worker sync attempt %d/%d failed: %v", attempt, attempts, err)
 			select {
 			case <-ctx.Done():
-				return ctx.Err()
+				return 0, ctx.Err()
 			case <-time.After(r.cfg.RetryBackoff):
 			}
 		}
 	}
 
-	return fmt.Errorf("worker sync exhausted retries: %w", lastErr)
+	return inserted, fmt.Errorf("worker sync exhausted retries: %w", lastErr)
 }
 
 func (r Runner) doRequest(req *http.Request, op string) error {

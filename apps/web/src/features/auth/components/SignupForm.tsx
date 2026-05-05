@@ -9,6 +9,7 @@ import { signup } from "../api/auth.api";
 import { useSession } from "../hooks/useSession";
 import { useTheme } from "../../../shared/hooks/useTheme";
 import type { NotificationFrequency } from "../../notifications/model/notifications.types";
+import { PreferredCompaniesPicker } from "../../profile/components/PreferredCompaniesPicker";
 
 const MAX_RESUME_BYTES = 4 * 1024 * 1024;
 
@@ -48,6 +49,7 @@ export function SignupForm({ onSuccess }: { onSuccess: () => void }) {
   const [keywordsLine, setKeywordsLine] = useState("software engineer, golang");
   const [locationsLine, setLocationsLine] = useState("Remote, United States");
   const [titlesLine, setTitlesLine] = useState("Software Engineer, Backend Engineer");
+  const [preferredCompanies, setPreferredCompanies] = useState<string[]>([]);
   const [minComp, setMinComp] = useState("120000");
   const [emailOptIn, setEmailOptIn] = useState(true);
   const [darkMode, setDarkMode] = useState(readStoredDarkMode);
@@ -78,6 +80,7 @@ export function SignupForm({ onSuccess }: { onSuccess: () => void }) {
           keywords: splitCommaPrefs(keywordsLine),
           locations: splitCommaPrefs(locationsLine),
           desiredTitles: splitCommaPrefs(titlesLine),
+          preferredCompanies,
           minComp: minParsed,
           emailOptIn,
           darkMode,
@@ -221,6 +224,7 @@ export function SignupForm({ onSuccess }: { onSuccess: () => void }) {
         />
         {resumeName ? <small style={{ color: "var(--muted)" }}>Selected: {resumeName}</small> : <small style={{ color: "var(--muted)" }}>Optional — you can upload later from your profile.</small>}
       </fieldset>
+      <PreferredCompaniesPicker selected={preferredCompanies} onChange={setPreferredCompanies} />
 
       {error ? <small style={{ color: "var(--danger)", fontWeight: 600 }}>{error}</small> : null}
       <Button type="submit" disabled={isSubmitting}>

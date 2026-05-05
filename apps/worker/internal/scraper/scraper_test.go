@@ -2,7 +2,9 @@ package scraper
 
 import (
 	"os"
+	"strings"
 	"testing"
+	"time"
 )
 
 func TestCanonicalizeURL(t *testing.T) {
@@ -17,6 +19,28 @@ func TestNormalizeCompensationVariants(t *testing.T) {
 	got := normalizeCompensation(input)
 	if got == "" {
 		t.Fatalf("expected normalized compensation")
+	}
+	if !strings.Contains(got, "/YEAR") {
+		t.Fatalf("expected yearly suffix, got %q", got)
+	}
+}
+
+func TestParsePostedAtRelativeDate(t *testing.T) {
+	got := parsePostedAt("3 days ago")
+	parsed, err := time.Parse(time.RFC3339, got)
+	if err != nil {
+		t.Fatalf("expected RFC3339 date, got %q", got)
+	}
+	if parsed.After(time.Now().UTC()) {
+		t.Fatalf("expected past timestamp, got %q", got)
+	}
+}
+
+func TestExtractLinkedInPostedAtPrefersDatetime(t *testing.T) {
+	card := `<li><time class="job-search-card__listdate" datetime="2026-05-01T12:00:00Z">4 days ago</time></li>`
+	got := extractLinkedInPostedAt(card)
+	if got != "2026-05-01T12:00:00Z" {
+		t.Fatalf("expected datetime to be used, got %q", got)
 	}
 }
 

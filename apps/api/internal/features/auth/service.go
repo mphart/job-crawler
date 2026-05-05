@@ -125,12 +125,13 @@ func signupProfilePatch(req SignupRequest) map[string]any {
 	if req.Preferences != nil {
 		p := req.Preferences
 		patch["preferences"] = map[string]any{
-			"keywords":      p.Keywords,
-			"locations":     p.Locations,
-			"desiredTitles": p.DesiredTitles,
-			"minComp":       p.MinComp,
-			"emailOptIn":    p.EmailOptIn,
-			"darkMode":      p.DarkMode,
+			"keywords":           p.Keywords,
+			"locations":          p.Locations,
+			"desiredTitles":      p.DesiredTitles,
+			"preferredCompanies": p.PreferredCompanies,
+			"minComp":            p.MinComp,
+			"emailOptIn":         p.EmailOptIn,
+			"darkMode":           p.DarkMode,
 		}
 	}
 	return patch

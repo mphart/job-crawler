@@ -7,34 +7,42 @@ import (
 )
 
 type Config struct {
-	APIBaseURL     string
-	RunInterval    time.Duration
-	RequestTimeout time.Duration
-	BearerToken    string
-	APIToken       string
-	MaxSyncRetries int
-	RetryBackoff   time.Duration
-	SMTPHost       string
-	SMTPPort       int
-	SMTPUsername   string
-	SMTPPassword   string
-	SMTPFrom       string
+	APIBaseURL           string
+	RunInterval          time.Duration
+	StartupMinJobs       int
+	StartupMaxJobs       int
+	StartupMaxAttempts   int
+	StartupRetryInterval time.Duration
+	RequestTimeout       time.Duration
+	BearerToken          string
+	APIToken             string
+	MaxSyncRetries       int
+	RetryBackoff         time.Duration
+	SMTPHost             string
+	SMTPPort             int
+	SMTPUsername         string
+	SMTPPassword         string
+	SMTPFrom             string
 }
 
 func Load() Config {
 	return Config{
-		APIBaseURL:     get("WORKER_API_BASE_URL", "http://api:8080"),
-		RunInterval:    duration("WORKER_RUN_INTERVAL", 30*time.Second),
-		RequestTimeout: duration("WORKER_REQUEST_TIMEOUT", 5*time.Second),
-		BearerToken:    os.Getenv("WORKER_BEARER_TOKEN"),
-		APIToken:       get("WORKER_API_TOKEN", "worker-dev-token"),
-		MaxSyncRetries: intValue("WORKER_MAX_SYNC_RETRIES", 3),
-		RetryBackoff:   duration("WORKER_RETRY_BACKOFF", 1500*time.Millisecond),
-		SMTPHost:       os.Getenv("WORKER_SMTP_HOST"),
-		SMTPPort:       intValue("WORKER_SMTP_PORT", 587),
-		SMTPUsername:   os.Getenv("WORKER_SMTP_USERNAME"),
-		SMTPPassword:   os.Getenv("WORKER_SMTP_PASSWORD"),
-		SMTPFrom:       get("WORKER_SMTP_FROM", "no-reply@jobcrawler.local"),
+		APIBaseURL:           get("WORKER_API_BASE_URL", "http://api:8080"),
+		RunInterval:          duration("WORKER_RUN_INTERVAL", 4*time.Hour),
+		StartupMinJobs:       intValue("WORKER_STARTUP_MIN_JOBS", 20),
+		StartupMaxJobs:       intValue("WORKER_STARTUP_MAX_JOBS", 50),
+		StartupMaxAttempts:   intValue("WORKER_STARTUP_MAX_ATTEMPTS", 6),
+		StartupRetryInterval: duration("WORKER_STARTUP_RETRY_INTERVAL", 2*time.Minute),
+		RequestTimeout:       duration("WORKER_REQUEST_TIMEOUT", 5*time.Second),
+		BearerToken:          os.Getenv("WORKER_BEARER_TOKEN"),
+		APIToken:             get("WORKER_API_TOKEN", "worker-dev-token"),
+		MaxSyncRetries:       intValue("WORKER_MAX_SYNC_RETRIES", 3),
+		RetryBackoff:         duration("WORKER_RETRY_BACKOFF", 1500*time.Millisecond),
+		SMTPHost:             os.Getenv("WORKER_SMTP_HOST"),
+		SMTPPort:             intValue("WORKER_SMTP_PORT", 587),
+		SMTPUsername:         os.Getenv("WORKER_SMTP_USERNAME"),
+		SMTPPassword:         os.Getenv("WORKER_SMTP_PASSWORD"),
+		SMTPFrom:             get("WORKER_SMTP_FROM", "no-reply@jobcrawler.local"),
 	}
 }
 

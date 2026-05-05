@@ -1,6 +1,7 @@
 services:
   mysql:
     image: mysql:8.4
+    restart: unless-stopped
     environment:
       MYSQL_DATABASE: ${MYSQL_DATABASE:-jobcrawler}
       MYSQL_USER: ${MYSQL_USER:-jobcrawler}
@@ -8,6 +9,8 @@ services:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
     ports:
       - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
     healthcheck:
       test:
         [
@@ -27,6 +30,7 @@ services:
     build:
       context: .
       dockerfile: ./apps/api/Dockerfile
+    restart: unless-stopped
     environment:
       API_HTTP_ADDR: ${API_HTTP_ADDR:-:8080}
       API_JWT_SECRET: ${API_JWT_SECRET:-dev-secret}
@@ -46,6 +50,7 @@ services:
       - "8080:8080"
 
   web:
+    restart: unless-stopped
     build:
       context: .
       dockerfile: ./apps/web/Dockerfile
@@ -57,12 +62,17 @@ services:
       - "5173:5173"
 
   worker:
+    restart: unless-stopped
     build:
       context: .
       dockerfile: ./apps/worker/Dockerfile
     environment:
       WORKER_API_BASE_URL: ${WORKER_API_BASE_URL:-http://api:8080}
-      WORKER_RUN_INTERVAL: ${WORKER_RUN_INTERVAL:-30s}
+      WORKER_RUN_INTERVAL: ${WORKER_RUN_INTERVAL:-4h}
+      WORKER_STARTUP_MIN_JOBS: ${WORKER_STARTUP_MIN_JOBS:-20}
+      WORKER_STARTUP_MAX_JOBS: ${WORKER_STARTUP_MAX_JOBS:-50}
+      WORKER_STARTUP_MAX_ATTEMPTS: ${WORKER_STARTUP_MAX_ATTEMPTS:-6}
+      WORKER_STARTUP_RETRY_INTERVAL: ${WORKER_STARTUP_RETRY_INTERVAL:-2m}
       WORKER_REQUEST_TIMEOUT: ${WORKER_REQUEST_TIMEOUT:-5s}
       WORKER_API_TOKEN: ${WORKER_API_TOKEN:-worker-dev-token}
       WORKER_MAX_SYNC_RETRIES: ${WORKER_MAX_SYNC_RETRIES:-5}
@@ -74,3 +84,6 @@ services:
       WORKER_SMTP_FROM: ${WORKER_SMTP_FROM:-no-reply@jobcrawler.local}
     depends_on:
       - api
+
+volumes:
+  mysql_data:

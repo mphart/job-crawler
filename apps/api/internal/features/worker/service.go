@@ -11,10 +11,6 @@ type Service struct {
 	MySQL *db.MySQLAuthStore
 }
 
-func (s Service) Tick() db.JobPosting {
-	return s.Store.AddGeneratedJob()
-}
-
 func (s Service) Ingest(jobs []db.ScrapedJob) int {
 	if s.MySQL != nil {
 		if inserted, err := s.MySQL.IngestScrapedJobs(jobs); err == nil {

@@ -19,6 +19,7 @@ func (s *MySQLAuthStore) ensureProfileColumns() error {
 		"ALTER TABLE users ADD COLUMN IF NOT EXISTS keywords TEXT NULL",
 		"ALTER TABLE users ADD COLUMN IF NOT EXISTS locations TEXT NULL",
 		"ALTER TABLE users ADD COLUMN IF NOT EXISTS desired_titles TEXT NULL",
+		"ALTER TABLE users ADD COLUMN IF NOT EXISTS preferred_companies TEXT NULL",
 		`CREATE TABLE IF NOT EXISTS resume_signals (
   user_id VARCHAR(64) PRIMARY KEY,
   keywords TEXT NULL,
@@ -190,7 +191,7 @@ WHERE user_id = ? LIMIT 1
 func (s *MySQLAuthStore) Profile(requester, userID string) (Profile, bool, error) {
 	row := s.db.QueryRow(`
 SELECT id, email, username, is_private, resume_file_name, email_opt_in, dark_mode, min_comp,
-       IFNULL(keywords, ''), IFNULL(locations, ''), IFNULL(desired_titles, '')
+       IFNULL(keywords, ''), IFNULL(locations, ''), IFNULL(desired_titles, ''), IFNULL(preferred_companies, '')
 FROM users WHERE id = ? LIMIT 1
 `, userID)
 
@@ -198,9 +199,9 @@ FROM users WHERE id = ? LIMIT 1
 	var isPrivate, emailOptIn, darkMode bool
 	var resume sql.NullString
 	var minComp int
-	var keywordCSV, locationCSV, titlesCSV string
+	var keywordCSV, locationCSV, titlesCSV, companiesCSV string
 
-	if err := row.Scan(&id, &email, &username, &isPrivate, &resume, &emailOptIn, &darkMode, &minComp, &keywordCSV, &locationCSV, &titlesCSV); err != nil {
+	if err := row.Scan(&id, &email, &username, &isPrivate, &resume, &emailOptIn, &darkMode, &minComp, &keywordCSV, &locationCSV, &titlesCSV, &companiesCSV); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Profile{}, false, nil
 		}
@@ -214,12 +215,13 @@ FROM users WHERE id = ? LIMIT 1
 		IsPrivate:      isPrivate,
 		ResumeFileName: resume.String,
 		Preferences: Preference{
-			Keywords:      splitKeywords(keywordCSV),
-			Locations:     splitCommaPreserve(locationCSV),
-			DesiredTitles: splitCommaPreserve(titlesCSV),
-			MinComp:       minComp,
-			EmailOptIn:    emailOptIn,
-			DarkMode:      darkMode,
+			Keywords:           splitKeywords(keywordCSV),
+			Locations:          splitCommaPreserve(locationCSV),
+			DesiredTitles:      splitCommaPreserve(titlesCSV),
+			PreferredCompanies: splitCommaPreserve(companiesCSV),
+			MinComp:            minComp,
+			EmailOptIn:         emailOptIn,
+			DarkMode:           darkMode,
 		},
 		AppliedJobs:  []JobPosting{},
 		TotalApplied: 0,
@@ -309,6 +311,13 @@ func (s *MySQLAuthStore) UpdateMe(userID string, patch map[string]any) (Profile,
 				args = append(args, csv)
 			}
 		}
+		if v, ok := pref["preferredCompanies"]; ok {
+			if parts, ok2 := stringSliceFromAny(v); ok2 {
+				csv := joinCommaPreserve(parts)
+				assignments = append(assignments, "preferred_companies = ?")
+				args = append(args, csv)
+			}
+		}
 	}
 
 	if len(assignments) > 0 {
@@ -353,4 +362,34 @@ SELECT COUNT(*) FROM feed_decisions WHERE user_id = ? AND decision_type = 'APPLI
 		})
 	}
 	return result, rows.Err()
+}
+
+func (s *MySQLAuthStore) SearchCompanies(q string) ([]string, error) {
+	term := strings.TrimSpace(q)
+	query := `
+SELECT DISTINCT company
+FROM jobs
+WHERE company IS NOT NULL
+  AND company <> ''
+  AND (? = '' OR LOWER(company) LIKE CONCAT('%', LOWER(?), '%'))
+ORDER BY company ASC
+LIMIT 25`
+	rows, err := s.db.Query(query, term, term)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make([]string, 0, 25)
+	for rows.Next() {
+		var company string
+		if err := rows.Scan(&company); err != nil {
+			return nil, err
+		}
+		company = strings.TrimSpace(company)
+		if company != "" {
+			out = append(out, company)
+		}
+	}
+	return out, rows.Err()
 }

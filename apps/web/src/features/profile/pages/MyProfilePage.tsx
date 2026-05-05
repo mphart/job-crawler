@@ -12,6 +12,7 @@ import { updateProfile } from "../api/profile.api";
 import { ApplicationHistory } from "../components/ApplicationHistory";
 import { EmptyState } from "../../../shared/components/EmptyState";
 import { useSession } from "../../auth/hooks/useSession";
+import { PreferredCompaniesPicker } from "../components/PreferredCompaniesPicker";
 
 export function MyProfilePage() {
   const navigate = useNavigate();
@@ -41,6 +42,14 @@ export function MyProfilePage() {
         current={profile.resumeFileName}
         onUpload={async ({ fileName, contentBase64 }) => {
           const updated = await updateProfile({ resumeFileName: fileName, resumeContentBase64: contentBase64 }, user.token);
+          setProfile(updated);
+        }}
+      />
+      <PreferredCompaniesPicker
+        token={user.token}
+        selected={profile.preferences.preferredCompanies}
+        onChange={async (preferredCompanies) => {
+          const updated = await updateProfile({ preferences: { ...profile.preferences, preferredCompanies } }, user.token);
           setProfile(updated);
         }}
       />

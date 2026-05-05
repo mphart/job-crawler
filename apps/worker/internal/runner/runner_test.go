@@ -62,7 +62,7 @@ func TestTick_RetriesSyncUntilSuccess(t *testing.T) {
 		return []scraper.ScrapedJob{{Source: "test", ExternalID: "1", Company: "Acme", Title: "Engineer", Location: "Remote", URL: "https://example.com/job/1"}}, nil
 	}
 
-	if err := r.tick(context.Background()); err != nil {
+	if _, err := r.tick(context.Background()); err != nil {
 		t.Fatalf("expected retry to eventually succeed, got error: %v", err)
 	}
 
@@ -103,7 +103,7 @@ func TestTick_FailsAfterExhaustedRetries(t *testing.T) {
 		return []scraper.ScrapedJob{{Source: "test", ExternalID: "1", Company: "Acme", Title: "Engineer", Location: "Remote", URL: "https://example.com/job/1"}}, nil
 	}
 
-	if err := r.tick(context.Background()); err == nil {
+	if _, err := r.tick(context.Background()); err == nil {
 		t.Fatal("expected tick to fail after retries, got nil")
 	}
 
@@ -141,7 +141,7 @@ func TestTick_FailsWhenHealthCheckFails(t *testing.T) {
 	r.scrapeFn = func(ctx context.Context, client *http.Client, keywords []string) ([]scraper.ScrapedJob, error) {
 		return []scraper.ScrapedJob{{Source: "test", ExternalID: "1", Company: "Acme", Title: "Engineer", Location: "Remote", URL: "https://example.com/job/1"}}, nil
 	}
-	if err := r.tick(context.Background()); err == nil {
+	if _, err := r.tick(context.Background()); err == nil {
 		t.Fatal("expected health failure error, got nil")
 	}
 }
@@ -174,7 +174,7 @@ func TestTick_FailsWhenScrapeFails(t *testing.T) {
 	r.scrapeFn = func(ctx context.Context, client *http.Client, keywords []string) ([]scraper.ScrapedJob, error) {
 		return nil, errors.New("boom")
 	}
-	if err := r.tick(context.Background()); err == nil {
+	if _, err := r.tick(context.Background()); err == nil {
 		t.Fatal("expected scrape failure error, got nil")
 	}
 }

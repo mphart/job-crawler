@@ -6,6 +6,7 @@ export type SignupPreferencesPayload = {
   keywords: string[];
   locations: string[];
   desiredTitles: string[];
+  preferredCompanies: string[];
   minComp: number;
   emailOptIn: boolean;
   darkMode: boolean;
