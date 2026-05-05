@@ -16,9 +16,9 @@ type User struct {
 	ResumeFileName                    string
 }
 type Preference struct {
-	Keywords, Locations, DesiredTitles []string
-	MinComp                            int
-	EmailOptIn, DarkMode               bool
+	Keywords, Locations, DesiredTitles, PreferredCompanies []string
+	MinComp                                                int
+	EmailOptIn, DarkMode                                   bool
 }
 type AppliedBy struct{ UserID, Username string }
 type JobPosting struct {
@@ -46,7 +46,6 @@ type Store struct {
 	Jobs                  map[string]JobPosting
 	Decisions             []FeedDecision
 	NotificationFrequency map[string]string
-	GeneratedJobCount     int
 }
 
 type ScrapedJob struct {
@@ -65,9 +64,6 @@ func NewStore() *Store {
 	s.Users["u_1"] = User{ID: "u_1", Email: "mason@example.com", Username: "mason", PasswordHash: "", IsPrivate: false}
 	s.Users["u_2"] = User{ID: "u_2", Email: "alex@example.com", Username: "alex", PasswordHash: "", IsPrivate: false}
 	s.Preferences["u_1"] = Preference{Keywords: []string{"software engineer", "frontend"}, Locations: []string{"Remote", "Austin"}, DesiredTitles: []string{"Software Engineer", "Frontend Engineer"}, MinComp: 120000, EmailOptIn: true}
-	now := time.Now()
-	s.Jobs["job_1"] = JobPosting{ID: "job_1", Company: "Cisco", Title: "Software Engineer", Location: "Austin, TX", Compensation: "$130k-$155k", PostedAt: now.Add(-24 * time.Hour).Format(time.RFC3339), URL: "https://example.com/jobs/1", AppliedBy: []AppliedBy{{UserID: "u_2", Username: "alex"}}}
-	s.Jobs["job_2"] = JobPosting{ID: "job_2", Company: "365 Retail Markets", Title: "Frontend Engineer", Location: "Remote", Compensation: "$120k-$140k", PostedAt: now.Add(-48 * time.Hour).Format(time.RFC3339), URL: "https://example.com/jobs/2", AppliedBy: nil}
 	return s
 }
 
@@ -121,6 +117,19 @@ func (s *Store) Feed(userID, search, sortBy string) []JobPosting {
 		}
 		out = append(out, j)
 	}
+	if q == "" {
+		pref := s.Preferences[userID]
+		roleSignals := make([]string, 0, len(pref.Keywords)+len(pref.DesiredTitles))
+		roleSignals = append(roleSignals, pref.Keywords...)
+		roleSignals = append(roleSignals, pref.DesiredTitles...)
+		filtered := make([]JobPosting, 0, len(out))
+		for _, job := range out {
+			if inMemoryIsRelevant(job, roleSignals, pref.PreferredCompanies) {
+				filtered = append(filtered, job)
+			}
+		}
+		out = filtered
+	}
 	sort.Slice(out, func(i, j int) bool {
 		switch sortBy {
 		case "company":
@@ -135,7 +144,51 @@ func (s *Store) Feed(userID, search, sortBy string) []JobPosting {
 			return out[i].PostedAt > out[j].PostedAt
 		}
 	})
+	if q == "" {
+		pref := s.Preferences[userID]
+		if len(pref.PreferredCompanies) > 0 {
+			sort.SliceStable(out, func(i, j int) bool {
+				return inMemoryPreferredCompanyScore(out[i], pref.PreferredCompanies) > inMemoryPreferredCompanyScore(out[j], pref.PreferredCompanies)
+			})
+		}
+	}
 	return out
+}
+
+func inMemoryIsRelevant(job JobPosting, roleSignals []string, preferredCompanies []string) bool {
+	roleMatch := len(roleSignals) == 0
+	hay := strings.ToLower(job.Company + " " + job.Title)
+	for _, signal := range roleSignals {
+		s := strings.ToLower(strings.TrimSpace(signal))
+		if s != "" && strings.Contains(hay, s) {
+			roleMatch = true
+			break
+		}
+	}
+	preferred := false
+	company := strings.ToLower(strings.TrimSpace(job.Company))
+	for _, c := range preferredCompanies {
+		p := strings.ToLower(strings.TrimSpace(c))
+		if p != "" && strings.Contains(company, p) {
+			preferred = true
+			break
+		}
+	}
+	if preferred {
+		return roleMatch
+	}
+	return roleMatch || len(roleSignals) == 0
+}
+
+func inMemoryPreferredCompanyScore(job JobPosting, preferredCompanies []string) int {
+	company := strings.ToLower(strings.TrimSpace(job.Company))
+	for _, preferred := range preferredCompanies {
+		p := strings.ToLower(strings.TrimSpace(preferred))
+		if p != "" && strings.Contains(company, p) {
+			return 1
+		}
+	}
+	return 0
 }
 
 func (s *Store) Decide(userID, jobID, decision string) error {
@@ -248,6 +301,9 @@ func (s *Store) UpdateMe(userID string, patch map[string]any) (Profile, bool) {
 		if v, ok := raw["desiredTitles"]; ok {
 			pref.DesiredTitles = mongoStringSlice(v)
 		}
+		if v, ok := raw["preferredCompanies"]; ok {
+			pref.PreferredCompanies = mongoStringSlice(v)
+		}
 		s.Preferences[userID] = pref
 	}
 	u = s.Users[userID]
@@ -290,34 +346,32 @@ func (s *Store) SearchUsers(q string) []map[string]any {
 	return out
 }
 
-func (s *Store) AddGeneratedJob() JobPosting {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.GeneratedJobCount++
-	id := "job_generated_" + time.Now().Format("20060102150405") + "_" + strings.ToLower(time.Now().Format("150405.000000000"))
-	if _, exists := s.Jobs[id]; exists {
-		id = id + "_" + strings.ToLower(strings.ReplaceAll(time.Now().Format("150405.000000000"), ".", ""))
+func (s *Store) SearchCompanies(q string) []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	needle := strings.ToLower(strings.TrimSpace(q))
+	seen := map[string]struct{}{}
+	out := make([]string, 0, 25)
+	for _, job := range s.Jobs {
+		company := strings.TrimSpace(job.Company)
+		if company == "" {
+			continue
+		}
+		key := strings.ToLower(company)
+		if needle != "" && !strings.Contains(key, needle) {
+			continue
+		}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, company)
+		if len(out) >= 25 {
+			break
+		}
 	}
-
-	companies := []string{"Acme Systems", "Northstar Labs", "Blue River Tech"}
-	titles := []string{"Backend Engineer", "Platform Engineer", "Full Stack Engineer"}
-	locations := []string{"Remote", "Austin, TX", "Minneapolis, MN"}
-	idx := s.GeneratedJobCount % len(companies)
-
-	posting := JobPosting{
-		ID:           id,
-		Company:      companies[idx],
-		Title:        titles[idx],
-		Location:     locations[idx],
-		Compensation: "$125k-$165k",
-		PostedAt:     time.Now().Format(time.RFC3339),
-		URL:          "https://example.com/jobs/" + id,
-		AppliedBy:    nil,
-	}
-
-	s.Jobs[id] = posting
-	return posting
+	sort.Strings(out)
+	return out
 }
 
 func (s *Store) IngestScrapedJobs(jobs []ScrapedJob) int {
@@ -373,6 +427,17 @@ func (s *Store) WorkerKeywords() []string {
 	for _, pref := range s.Preferences {
 		for _, keyword := range pref.Keywords {
 			normalized := strings.ToLower(strings.TrimSpace(keyword))
+			if normalized == "" {
+				continue
+			}
+			if _, ok := seen[normalized]; ok {
+				continue
+			}
+			seen[normalized] = struct{}{}
+			out = append(out, normalized)
+		}
+		for _, company := range pref.PreferredCompanies {
+			normalized := strings.ToLower(strings.TrimSpace(company))
 			if normalized == "" {
 				continue
 			}

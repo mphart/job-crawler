@@ -142,13 +142,24 @@ LIMIT 200`
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	signals, err := s.userSignals(userID)
+	roleSignals, err := s.userRoleSignals(userID)
 	if err != nil {
 		return nil, err
 	}
-	if strings.TrimSpace(search) == "" && len(signals) > 0 {
+	preferredCompanies, err := s.userPreferredCompanies(userID)
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(search) == "" {
+		out = filterRelevantJobs(out, roleSignals, preferredCompanies)
+	}
+	if strings.TrimSpace(search) == "" && len(roleSignals) > 0 {
 		sort.SliceStable(out, func(i, j int) bool {
-			return recommendationScore(out[i], signals) > recommendationScore(out[j], signals)
+			return recommendationScore(out[i], roleSignals, preferredCompanies) > recommendationScore(out[j], roleSignals, preferredCompanies)
+		})
+	} else if strings.TrimSpace(search) == "" && len(preferredCompanies) > 0 {
+		sort.SliceStable(out, func(i, j int) bool {
+			return recommendationScore(out[i], nil, preferredCompanies) > recommendationScore(out[j], nil, preferredCompanies)
 		})
 	}
 	return out, nil
@@ -256,8 +267,12 @@ func (s *MySQLAuthStore) matchJobsForKeywords(userID, keywordCSV string) ([]JobP
 	if err != nil {
 		return nil, err
 	}
-	if len(keywords) == 0 {
+	if len(keywords) == 0 && strings.TrimSpace(keywordCSV) != "" {
 		keywords = splitKeywords(keywordCSV)
+	}
+	preferredCompanies, err := s.userPreferredCompanies(userID)
+	if err != nil {
+		return nil, err
 	}
 	rows, err := s.db.Query(`
 SELECT id, company, title, location, compensation, posted_at, url
@@ -280,7 +295,7 @@ LIMIT 250`)
 		job.Location = location.String
 		job.Compensation = compensation.String
 		job.PostedAt = postedAt.Format(time.RFC3339)
-		if len(keywords) == 0 || jobMatchesAny(job, keywords) {
+		if isRelevantForUser(job, keywords, preferredCompanies) {
 			matches = append(matches, job)
 		}
 		if len(matches) >= 15 {
@@ -361,18 +376,99 @@ ON DUPLICATE KEY UPDATE frequency = VALUES(frequency)
 	return err
 }
 
-func recommendationScore(job JobPosting, keywords []string) int {
+func recommendationScore(job JobPosting, keywords []string, preferredCompanies []string) int {
 	score := 0
-	hay := strings.ToLower(job.Company + " " + job.Title + " " + job.Location)
+	hay := strings.ToLower(job.Company + " " + job.Title)
 	for _, k := range keywords {
 		if strings.Contains(hay, k) {
 			score += 5
+		}
+	}
+	company := strings.ToLower(strings.TrimSpace(job.Company))
+	for _, preferred := range preferredCompanies {
+		p := strings.ToLower(strings.TrimSpace(preferred))
+		if p != "" && strings.Contains(company, p) {
+			score += 100
+			break
 		}
 	}
 	if strings.TrimSpace(job.Compensation) != "" {
 		score++
 	}
 	return score
+}
+
+func isPreferredCompany(job JobPosting, preferredCompanies []string) bool {
+	company := strings.ToLower(strings.TrimSpace(job.Company))
+	for _, preferred := range preferredCompanies {
+		p := strings.ToLower(strings.TrimSpace(preferred))
+		if p != "" && strings.Contains(company, p) {
+			return true
+		}
+	}
+	return false
+}
+
+func isRelevantForUser(job JobPosting, roleSignals []string, preferredCompanies []string) bool {
+	roleMatch := len(roleSignals) == 0 || jobMatchesAny(job, roleSignals)
+	if isPreferredCompany(job, preferredCompanies) {
+		return roleMatch
+	}
+	if len(roleSignals) == 0 {
+		return true
+	}
+	return roleMatch
+}
+
+func filterRelevantJobs(jobs []JobPosting, roleSignals []string, preferredCompanies []string) []JobPosting {
+	if len(roleSignals) == 0 && len(preferredCompanies) == 0 {
+		return jobs
+	}
+	out := make([]JobPosting, 0, len(jobs))
+	for _, job := range jobs {
+		if isRelevantForUser(job, roleSignals, preferredCompanies) {
+			out = append(out, job)
+		}
+	}
+	return out
+}
+
+func (s *MySQLAuthStore) userRoleSignals(userID string) ([]string, error) {
+	merged := map[string]struct{}{}
+	var keywordCSV, desiredTitlesCSV string
+	if err := s.db.QueryRow("SELECT IFNULL(keywords, ''), IFNULL(desired_titles, '') FROM users WHERE id = ? LIMIT 1", userID).Scan(&keywordCSV, &desiredTitlesCSV); err != nil {
+		return nil, err
+	}
+	for _, k := range splitKeywords(keywordCSV) {
+		merged[k] = struct{}{}
+	}
+	for _, k := range splitKeywords(desiredTitlesCSV) {
+		merged[k] = struct{}{}
+	}
+	var resumeKeywords, resumeRoles string
+	_ = s.db.QueryRow(`
+SELECT IFNULL(keywords, ''), IFNULL(role_families, '')
+FROM resume_signals WHERE user_id = ? AND parse_status = 'ready' LIMIT 1
+`, userID).Scan(&resumeKeywords, &resumeRoles)
+	for _, set := range []string{resumeKeywords, resumeRoles} {
+		for _, k := range splitKeywords(set) {
+			merged[k] = struct{}{}
+		}
+	}
+	out := make([]string, 0, len(merged))
+	for k := range merged {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out, nil
+}
+
+func (s *MySQLAuthStore) userPreferredCompanies(userID string) ([]string, error) {
+	var csv string
+	if err := s.db.QueryRow("SELECT IFNULL(preferred_companies, '') FROM users WHERE id = ? LIMIT 1", userID).Scan(&csv); err != nil {
+		return nil, err
+	}
+	return splitCommaPreserve(csv), nil
 }
 
 func isDueForFrequency(lastSent, now time.Time, frequency string) bool {

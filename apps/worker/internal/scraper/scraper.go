@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -104,7 +105,6 @@ func scrapeLinkedIn(ctx context.Context, client *http.Client, keyword string) ([
 		)
 		location := firstMatch(card,
 			`(?s)job-search-card__location[^>]*>\s*(.*?)\s*<`,
-			`(?s)job-search-card__listdate[^>]*>\s*(.*?)\s*<`,
 		)
 		compensation := firstMatch(card,
 			`(?s)(?:job-search-card__salary-info|base-search-card__metadata)[^>]*>\s*(.*?)\s*<`,
@@ -128,7 +128,7 @@ func scrapeLinkedIn(ctx context.Context, client *http.Client, keyword string) ([
 			Title:        html.UnescapeString(clean(title)),
 			Location:     html.UnescapeString(clean(location)),
 			Compensation: normalizeCompensation(html.UnescapeString(clean(stripTags(compensation)))),
-			PostedAt:     time.Now().Format(time.RFC3339),
+			PostedAt:     extractLinkedInPostedAt(card),
 			URL:          canonicalizeURL("linkedin", html.UnescapeString(clean(link))),
 		})
 	}
@@ -201,8 +201,12 @@ func scrapeIndeed(ctx context.Context, client *http.Client, keyword string) ([]S
 			Title:        html.UnescapeString(clean(title)),
 			Location:     html.UnescapeString(clean(stripTags(location))),
 			Compensation: normalizeCompensation(html.UnescapeString(clean(stripTags(compensation)))),
-			PostedAt:     time.Now().Format(time.RFC3339),
-			URL:          canonicalizeURL("indeed", html.UnescapeString(clean(fullLink))),
+			PostedAt: inferPostedAt(card,
+				`(?s)(?:date|time)[^>]*>\s*(.*?)\s*<`,
+				`(?i)(\d+\+?\s+(?:minute|hour|day|week|month|year)s?\s+ago)`,
+				`(?i)(today|just posted|yesterday)`,
+			),
+			URL: canonicalizeURL("indeed", html.UnescapeString(clean(fullLink))),
 		})
 	}
 	return jobs, nil
@@ -271,8 +275,11 @@ func scrapeGlassdoor(ctx context.Context, client *http.Client, keyword string) (
 			Title:        html.UnescapeString(clean(stripTags(title))),
 			Location:     html.UnescapeString(clean(stripTags(location))),
 			Compensation: normalizeCompensation(html.UnescapeString(clean(stripTags(compensation)))),
-			PostedAt:     time.Now().Format(time.RFC3339),
-			URL:          canonicalizeURL("glassdoor", html.UnescapeString(clean(fullLink))),
+			PostedAt: inferPostedAt(card,
+				`(?i)(\d+\+?\s+(?:minute|hour|day|week|month|year)s?\s+ago)`,
+				`(?i)(today|just posted|yesterday)`,
+			),
+			URL: canonicalizeURL("glassdoor", html.UnescapeString(clean(fullLink))),
 		})
 	}
 	return jobs, nil
@@ -387,24 +394,27 @@ func normalizeCompany(company, source string) string {
 }
 
 func normalizeCompensation(value string) string {
-	trimmed := strings.ToLower(strings.TrimSpace(value))
+	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {
 		return ""
 	}
-	trimmed = strings.ReplaceAll(trimmed, "per year", "/year")
-	trimmed = strings.ReplaceAll(trimmed, "per hour", "/hour")
-	trimmed = strings.ReplaceAll(trimmed, "yr", "/year")
-	trimmed = strings.ReplaceAll(trimmed, "hr", "/hour")
-	trimmed = strings.ReplaceAll(trimmed, "k", "000")
-	money := captureMoneyFromText(trimmed)
+	normalized := strings.ToLower(trimmed)
+	normalized = strings.ReplaceAll(normalized, "per year", "/year")
+	normalized = strings.ReplaceAll(normalized, "per hour", "/hour")
+	normalized = strings.ReplaceAll(normalized, "a year", "/year")
+	normalized = strings.ReplaceAll(normalized, "an hour", "/hour")
+	normalized = strings.ReplaceAll(normalized, "yr", "/year")
+	normalized = strings.ReplaceAll(normalized, "hr", "/hour")
+	normalized = regexp.MustCompile(`\s+`).ReplaceAllString(normalized, " ")
+	money := captureMoneyFromText(normalized)
 	if money != "" {
-		return strings.ToUpper(strings.ReplaceAll(money, "/year", "/YEAR"))
+		return strings.ToUpper(strings.ReplaceAll(strings.ReplaceAll(money, " - ", "-"), "/year", "/YEAR"))
 	}
-	return strings.TrimSpace(value)
+	return strings.TrimSpace(trimmed)
 }
 
 func captureMoneyFromText(value string) string {
-	moneyRegex := regexp.MustCompile(`(?i)\$[\d,]+(?:\s*-\s*\$[\d,]+)?(?:\s*(?:/year|/hour|year|hour|yr|hr|k))?`)
+	moneyRegex := regexp.MustCompile(`(?i)\$[\d,]+(?:\.\d{2})?(?:k)?(?:\s*-\s*\$[\d,]+(?:\.\d{2})?(?:k)?)?(?:\s*(?:/year|/hour|year|hour|yr|hr))?`)
 	match := moneyRegex.FindString(value)
 	return strings.TrimSpace(match)
 }
@@ -537,4 +547,60 @@ func dedupeByURL(jobs []ScrapedJob) []ScrapedJob {
 		out = append(out, job)
 	}
 	return out
+}
+
+func inferPostedAt(card string, patterns ...string) string {
+	raw := firstMatch(card, patterns...)
+	raw = html.UnescapeString(clean(stripTags(raw)))
+	return parsePostedAt(raw)
+}
+
+func extractLinkedInPostedAt(card string) string {
+	// LinkedIn often stores date in datetime attr; fallback to relative text.
+	return inferPostedAt(card,
+		`(?s)<time[^>]*datetime="([^"]+)"`,
+		`(?s)job-search-card__listdate[^>]*>\s*(.*?)\s*<`,
+		`(?i)(\d+\+?\s+(?:minute|hour|day|week|month|year)s?\s+ago)`,
+		`(?i)(today|just posted|yesterday)`,
+	)
+}
+
+func parsePostedAt(raw string) string {
+	now := time.Now().UTC()
+	s := strings.ToLower(strings.TrimSpace(raw))
+	if s == "" {
+		return now.Format(time.RFC3339)
+	}
+	if t, err := time.Parse(time.RFC3339, raw); err == nil {
+		return t.UTC().Format(time.RFC3339)
+	}
+	if strings.Contains(s, "just posted") || strings.Contains(s, "today") {
+		return now.Format(time.RFC3339)
+	}
+	if strings.Contains(s, "yesterday") {
+		return now.Add(-24 * time.Hour).Format(time.RFC3339)
+	}
+	re := regexp.MustCompile(`(\d+)\+?\s*(minute|hour|day|week|month|year)`)
+	m := re.FindStringSubmatch(s)
+	if len(m) == 3 {
+		n, _ := strconv.Atoi(m[1])
+		if n < 1 {
+			n = 1
+		}
+		switch m[2] {
+		case "minute":
+			return now.Add(-time.Duration(n) * time.Minute).Format(time.RFC3339)
+		case "hour":
+			return now.Add(-time.Duration(n) * time.Hour).Format(time.RFC3339)
+		case "day":
+			return now.AddDate(0, 0, -n).Format(time.RFC3339)
+		case "week":
+			return now.AddDate(0, 0, -7*n).Format(time.RFC3339)
+		case "month":
+			return now.AddDate(0, -n, 0).Format(time.RFC3339)
+		case "year":
+			return now.AddDate(-n, 0, 0).Format(time.RFC3339)
+		}
+	}
+	return now.Format(time.RFC3339)
 }

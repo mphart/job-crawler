@@ -6,12 +6,13 @@ type LoginRequest struct {
 }
 
 type SignupPreferences struct {
-	Keywords      []string `json:"keywords"`
-	Locations     []string `json:"locations"`
-	DesiredTitles []string `json:"desiredTitles"`
-	MinComp       int      `json:"minComp"`
-	EmailOptIn    bool     `json:"emailOptIn"`
-	DarkMode      bool     `json:"darkMode"`
+	Keywords           []string `json:"keywords"`
+	Locations          []string `json:"locations"`
+	DesiredTitles      []string `json:"desiredTitles"`
+	PreferredCompanies []string `json:"preferredCompanies"`
+	MinComp            int      `json:"minComp"`
+	EmailOptIn         bool     `json:"emailOptIn"`
+	DarkMode           bool     `json:"darkMode"`
 }
 
 type SignupRequest struct {

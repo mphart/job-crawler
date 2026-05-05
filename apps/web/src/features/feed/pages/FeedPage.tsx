@@ -52,6 +52,7 @@ export function FeedPage() {
       <FeedFilters search={filters.search} sortBy={filters.sortBy} onSearch={setSearch} onSort={setSortBy} />
       {loading ? <p>Loading feed...</p> : null}
       {error ? <EmptyState title="Unable to load feed" description={error} /> : null}
+      {!loading && !error ? <p style={{ margin: "0.3rem 0 0.8rem", color: "var(--muted)" }}>{jobs.length} job posting{jobs.length === 1 ? "" : "s"} shown</p> : null}
       {!loading && !error ? <JobList jobs={jobs} onApply={onApply} onReject={onReject} /> : null}
     </PageShell>
   );

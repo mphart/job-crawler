@@ -8,7 +8,16 @@ import (
 
 func TestProfilePrivacyAndAppliedHistory(t *testing.T) {
 	store := db.NewStore()
-	feedDecision := db.FeedDecision{UserID: "u_1", JobID: "job_1", DecisionType: "APPLIED", DecisionAt: "2026-01-01T00:00:00Z"}
+	store.Jobs["job_real_1"] = db.JobPosting{
+		ID:           "job_real_1",
+		Company:      "RealTech",
+		Title:        "Software Engineer",
+		Location:     "Remote",
+		Compensation: "$150k-$180k",
+		PostedAt:     "2026-01-01T00:00:00Z",
+		URL:          "https://jobs.realtech.com/software-engineer",
+	}
+	feedDecision := db.FeedDecision{UserID: "u_1", JobID: "job_real_1", DecisionType: "APPLIED", DecisionAt: "2026-01-01T00:00:00Z"}
 	store.Decisions = append(store.Decisions, feedDecision)
 	store.Users["u_1"] = db.User{ID: "u_1", Email: "mason@example.com", Username: "mason", IsPrivate: true}
 

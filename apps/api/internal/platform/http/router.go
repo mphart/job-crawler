@@ -31,6 +31,7 @@ type Handlers struct {
 	ProfileGetByID         http.HandlerFunc
 	NotificationSettings   http.HandlerFunc
 	UsersSearch            http.HandlerFunc
+	CompaniesSearch        http.HandlerFunc
 }
 
 func NewRouter(h Handlers) http.Handler {
@@ -50,6 +51,7 @@ func NewRouter(h Handlers) http.Handler {
 	mux.HandleFunc("/api/profiles/", h.ProfileGetByID)
 	mux.HandleFunc("/api/notifications/settings", h.NotificationSettings)
 	mux.HandleFunc("/api/users/search", h.UsersSearch)
+	mux.HandleFunc("/api/companies/search", h.CompaniesSearch)
 	mux.HandleFunc("/api/worker/tick", h.WorkerTick)
 	mux.HandleFunc("/api/worker/preferences", h.WorkerPreferences)
 	mux.HandleFunc("/api/worker/digest-candidates", h.WorkerDigestCandidates)

@@ -6,12 +6,14 @@ type ApiUserPreference = {
   keywords?: string[];
   locations?: string[];
   desiredTitles?: string[];
+  preferredCompanies?: string[];
   minComp?: number;
   emailOptIn?: boolean;
   darkMode?: boolean;
   Keywords?: string[];
   Locations?: string[];
   DesiredTitles?: string[];
+  PreferredCompanies?: string[];
   MinComp?: number;
   EmailOptIn?: boolean;
   DarkMode?: boolean;
@@ -69,6 +71,7 @@ function mapPreferences(preferences: ApiUserPreference | undefined): Profile["pr
     keywords: preferences?.keywords ?? preferences?.Keywords ?? [],
     locations: preferences?.locations ?? preferences?.Locations ?? [],
     desiredTitles: preferences?.desiredTitles ?? preferences?.DesiredTitles ?? [],
+    preferredCompanies: preferences?.preferredCompanies ?? preferences?.PreferredCompanies ?? [],
     minComp: preferences?.minComp ?? preferences?.MinComp ?? 0,
     emailOptIn: preferences?.emailOptIn ?? preferences?.EmailOptIn ?? false,
     darkMode: preferences?.darkMode ?? preferences?.DarkMode ?? false,
@@ -114,4 +117,17 @@ export async function fetchProfile(userId: string, token: string, signal?: Abort
 export async function updateProfile(update: Partial<Profile> & { resumeContentBase64?: string }, token: string): Promise<Profile> {
   const payload = await requestJson<ApiProfile>("/api/profiles/me", "PATCH", update, { token });
   return mapProfile(payload);
+}
+
+type ApiCompanySearchResult = {
+  companies?: Array<{ name?: string; isVerified?: boolean }>;
+};
+
+export type CompanySearchResult = { name: string; isVerified: boolean };
+
+export async function searchCompanies(query: string, token?: string): Promise<CompanySearchResult[]> {
+  const payload = await requestJson<ApiCompanySearchResult>(`/api/companies/search?q=${encodeURIComponent(query)}`, "GET", undefined, token ? { token } : undefined);
+  return (payload.companies ?? [])
+    .filter((company) => (company.name ?? "").trim().length > 0)
+    .map((company) => ({ name: (company.name ?? "").trim(), isVerified: company.isVerified !== false }));
 }

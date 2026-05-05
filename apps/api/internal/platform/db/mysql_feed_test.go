@@ -7,10 +7,22 @@ func TestRecommendationScore_PrefersKeywordMatches(t *testing.T) {
 	jobB := JobPosting{Company: "Acme", Title: "Software Engineer", Location: "Austin"}
 	keywords := []string{"mechanical engineer"}
 
-	scoreA := recommendationScore(jobA, keywords)
-	scoreB := recommendationScore(jobB, keywords)
+	scoreA := recommendationScore(jobA, keywords, nil)
+	scoreB := recommendationScore(jobB, keywords, nil)
 	if scoreA <= scoreB {
 		t.Fatalf("expected mechanical role to score higher (%d <= %d)", scoreA, scoreB)
+	}
+}
+
+func TestRecommendationScore_PrefersPreferredCompany(t *testing.T) {
+	jobA := JobPosting{Company: "Stripe", Title: "Backend Engineer", Location: "Remote"}
+	jobB := JobPosting{Company: "OtherCo", Title: "Backend Engineer", Location: "Remote"}
+	preferredCompanies := []string{"stripe"}
+
+	scoreA := recommendationScore(jobA, nil, preferredCompanies)
+	scoreB := recommendationScore(jobB, nil, preferredCompanies)
+	if scoreA <= scoreB {
+		t.Fatalf("expected preferred company to score higher (%d <= %d)", scoreA, scoreB)
 	}
 }
 

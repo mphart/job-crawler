@@ -8,6 +8,24 @@ import (
 
 func TestApplyAndRejectHideJobsFromFeed(t *testing.T) {
 	store := db.NewStore()
+	store.Jobs["job_real_1"] = db.JobPosting{
+		ID:           "job_real_1",
+		Company:      "TechOne",
+		Title:        "Software Engineer",
+		Location:     "Remote",
+		Compensation: "$180k-$210k",
+		PostedAt:     "2026-01-02T00:00:00Z",
+		URL:          "https://jobs.techone.com/ml-eng",
+	}
+	store.Jobs["job_real_2"] = db.JobPosting{
+		ID:           "job_real_2",
+		Company:      "TechTwo",
+		Title:        "Frontend Engineer",
+		Location:     "Remote",
+		Compensation: "$160k-$190k",
+		PostedAt:     "2026-01-01T00:00:00Z",
+		URL:          "https://jobs.techtwo.com/backend",
+	}
 	svc := Service{Store: InMemoryStore{Inner: store}}
 
 	initial, err := svc.List("u_1", "", "newest")
@@ -15,7 +33,7 @@ func TestApplyAndRejectHideJobsFromFeed(t *testing.T) {
 		t.Fatalf("list failed: %v", err)
 	}
 	if len(initial) == 0 {
-		t.Fatalf("expected seed jobs in feed")
+		t.Fatalf("expected jobs in feed")
 	}
 
 	if err := svc.Apply("u_1", initial[0].ID); err != nil {
